@@ -178,7 +178,7 @@ SELECT
     COUNT(DISTINCT CASE WHEN StatusTitulo = 'Ativo' THEN NumeroTitulo END) AS TitulosAtivos,
     COUNT(DISTINCT CASE WHEN StatusTitulo = 'Bloqueado' THEN NumeroTitulo END) AS TitulosBloqueados,
     COUNT(DISTINCT CASE WHEN StatusTitulo = 'Cancelado' THEN NumeroTitulo END) AS TitulosCancelados,
-    COUNT(DISTINCT CASE WHEN StatusInadimplencia LIKE 'INADIMPLENTE%' THEN NumeroTitulo END) AS TitulosInadimplentes,
+    COUNT(DISTINCT CASE WHEN StatusInadimplencia LIKE 'INADIMPLENTE%' THEN NumeroTitulo END) AS TitulosInadimplentesNoCartao,
 
     CAST(COUNT(DISTINCT CASE WHEN StatusInadimplencia LIKE 'INADIMPLENTE%' THEN NumeroTitulo END) * 100.0 /
          NULLIF(COUNT(DISTINCT NumeroTitulo), 0) AS DECIMAL(5,2)) AS TaxaInadimplenciaCartao,
@@ -439,7 +439,7 @@ SELECT TOP 20
     TotalTitulosNoCartao,
     TotalDocumentosNoCartao,
     TotalPromotoresNoCartao,
-    TitulosInadimplentes AS TitulosInadimplentesNoCartao,
+    TitulosInadimplentesNoCartao,
     TaxaInadimplenciaCartao,
     NivelRiscoCartao,
     PrimeiraVendaCartao,
