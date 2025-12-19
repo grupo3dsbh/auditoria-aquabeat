@@ -71,31 +71,59 @@ SELECT
     CAST(p.ParcelasPagas AS VARCHAR(10)) AS ParcelasPagas,
     CAST(p.ParcelasEmAberto AS VARCHAR(10)) AS ParcelasEmAberto,
     CAST(p.PrimeiraParcelaPaga AS VARCHAR(3)) AS PrimeiraParcelaPaga,
+    -- STATUS DE INADIMPLÊNCIA CORRIGIDO
+    -- Calcula quantas parcelas DEVERIAM estar pagas baseado no tempo desde a venda
     CAST(CASE
-        WHEN p.ParcelasEmAberto > 0 AND DATEDIFF(DAY, p.DataUltimaCobranca, GETDATE()) > 30
-        THEN 'Inadimplente'
-        ELSE 'Adimplente'
-    END AS VARCHAR(20)) AS StatusInadimplencia,
+        -- Calcular parcelas esperadas = meses desde a venda + 1
+        WHEN p.ParcelasPagas < (DATEDIFF(MONTH, p.DataVenda, GETDATE()) + 1)
+             AND p.ParcelasPagas < p.QuantidadeParcelas
+        THEN
+            CASE
+                -- Se pagou apenas 1 parcela e deveria ter pago mais
+                WHEN p.ParcelasPagas = 1 AND (DATEDIFF(MONTH, p.DataVenda, GETDATE()) + 1) > 1
+                THEN 'INADIMPLENTE - Apenas 1ª Parcela'
+
+                -- Se está devendo menos de 50% das parcelas esperadas
+                WHEN CAST(p.ParcelasPagas AS FLOAT) / (DATEDIFF(MONTH, p.DataVenda, GETDATE()) + 1) >= 0.5
+                THEN 'INADIMPLENTE - Menos de 50%'
+
+                -- Se está devendo mais de 50%
+                ELSE 'INADIMPLENTE - Mais de 50%'
+            END
+
+        -- Se pagou todas as parcelas esperadas até agora
+        WHEN p.ParcelasPagas >= (DATEDIFF(MONTH, p.DataVenda, GETDATE()) + 1)
+             OR p.ParcelasPagas >= p.QuantidadeParcelas
+        THEN 'ADIMPLENTE'
+
+        -- Default
+        ELSE 'ADIMPLENTE'
+    END AS VARCHAR(50)) AS StatusInadimplencia,
+    -- Dias em atraso (apenas se realmente inadimplente)
     CAST(CASE
-        WHEN p.ParcelasEmAberto > 0
-        THEN DATEDIFF(DAY, p.DataUltimaCobranca, GETDATE())
+        WHEN p.ParcelasPagas < (DATEDIFF(MONTH, p.DataVenda, GETDATE()) + 1)
+             AND p.ParcelasPagas < p.QuantidadeParcelas
+        THEN DATEDIFF(DAY, DATEADD(MONTH, p.ParcelasPagas, p.DataVenda), GETDATE())
         ELSE 0
     END AS VARCHAR(10)) AS DiasInadimplente,
+    -- Inadimplente há 3 meses ou mais
     CAST(CASE
-        WHEN DATEDIFF(MONTH, p.DataPrimeiraCobranca, GETDATE()) >= 3
-             AND p.ParcelasEmAberto > 0
+        WHEN DATEDIFF(MONTH, p.DataVenda, GETDATE()) >= 3
+             AND p.ParcelasPagas < (DATEDIFF(MONTH, p.DataVenda, GETDATE()) + 1 - 2)
         THEN 'Sim'
         ELSE 'Não'
     END AS VARCHAR(3)) AS Inadimplente3Meses,
+    -- Inadimplente há 6 meses ou mais
     CAST(CASE
-        WHEN DATEDIFF(MONTH, p.DataPrimeiraCobranca, GETDATE()) >= 6
-             AND p.ParcelasEmAberto > 0
+        WHEN DATEDIFF(MONTH, p.DataVenda, GETDATE()) >= 6
+             AND p.ParcelasPagas < (DATEDIFF(MONTH, p.DataVenda, GETDATE()) + 1 - 5)
         THEN 'Sim'
         ELSE 'Não'
     END AS VARCHAR(3)) AS Inadimplente6Meses,
+    -- Inadimplente há 12 meses ou mais
     CAST(CASE
-        WHEN DATEDIFF(MONTH, p.DataPrimeiraCobranca, GETDATE()) >= 12
-             AND p.ParcelasEmAberto > 0
+        WHEN DATEDIFF(MONTH, p.DataVenda, GETDATE()) >= 12
+             AND p.ParcelasPagas < (DATEDIFF(MONTH, p.DataVenda, GETDATE()) + 1 - 11)
         THEN 'Sim'
         ELSE 'Não'
     END AS VARCHAR(3)) AS Inadimplente12Meses,
