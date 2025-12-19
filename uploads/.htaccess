@@ -1,0 +1,7 @@
+# Bloquear acesso direto a arquivos CSV
+<FilesMatch "\.(csv|xlsx|xls)$">
+    Require all denied
+</FilesMatch>
+
+# Permitir apenas download via script PHP
+Options -Indexes

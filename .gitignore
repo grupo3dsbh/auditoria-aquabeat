@@ -1,0 +1,46 @@
+# Configurações
+config/config.php
+
+# Uploads
+uploads/*
+!uploads/.htaccess
+!uploads/.gitkeep
+
+# Logs
+logs/*
+!logs/.htaccess
+!logs/.gitkeep
+
+# Assets gerados
+assets/uploads/
+
+# Temporários
+*.tmp
+*.log
+*.cache
+
+# Sistema operacional
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+
+# IDE
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# Composer
+vendor/
+composer.lock
+
+# Node
+node_modules/
+package-lock.json
+
+# Backups
+*.bak
+*.backup
+*.sql.gz
