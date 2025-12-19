@@ -327,26 +327,43 @@ class CSVImporter {
 
             $value = trim($row[$index]);
 
-            // Campos booleanos
+            // Campos booleanos - processar ANTES de verificar se está vazio
             if (in_array($field, ['alterou_vagas', 'alerta_apenas_1parcela', 'alerta_cartao_risco', 'alerta_consultor_risco', 'alerta_alterou_vagas_inadimplente'])) {
-                $value = in_array(strtolower($value), ['sim', 'yes', '1', 'true', 's']);
+                if ($value === '' || $value === null) {
+                    $data[$field] = 0; // FALSE para campos booleanos vazios
+                } else {
+                    $data[$field] = in_array(strtolower($value), ['sim', 'yes', '1', 'true', 's']) ? 1 : 0;
+                }
+                continue;
             }
 
             // Campos numéricos
             if (in_array($field, ['dias_desde_venda', 'quantidade_parcelas_venda', 'qtd_parcelas_pagas', 'parcelas_restantes', 'total_titulos_no_cartao', 'total_documentos_no_cartao', 'total_promotores_no_cartao', 'titulos_inadimplentes_no_cartao', 'vendas_consultor', 'clientes_consultor', 'score_risco_geral'])) {
-                $value = $value !== '' ? (int)$value : null;
+                $data[$field] = $value !== '' ? (int)$value : null;
+                continue;
             }
 
             // Campos decimais
             if (in_array($field, ['valor_parcela', 'valor_total_plano', 'total_pago', 'saldo_restante', 'taxa_inadimplencia_cartao', 'taxa_inadimplencia_consultor', 'taxa_inadimplencia_3meses_consultor', 'taxa_inadimplencia_6meses_consultor', 'taxa_inadimplencia_1ano_consultor', 'valor_recebido_consultor', 'valor_perdido_consultor'])) {
-                $value = $value !== '' ? floatval(str_replace(',', '.', str_replace('.', '', $value))) : null;
+                $data[$field] = $value !== '' ? floatval(str_replace(',', '.', str_replace('.', '', $value))) : null;
+                continue;
             }
 
             // Campos de data
             if (in_array($field, ['data_cadastro', 'data_primeira_venda', 'data_ultima_venda'])) {
-                $value = $value !== '' ? date('Y-m-d H:i:s', strtotime($value)) : null;
+                if ($value !== '' && $value !== null) {
+                    try {
+                        $data[$field] = date('Y-m-d H:i:s', strtotime($value));
+                    } catch (Exception $e) {
+                        $data[$field] = null;
+                    }
+                } else {
+                    $data[$field] = null;
+                }
+                continue;
             }
 
+            // Campos de texto normais
             $data[$field] = $value !== '' ? $value : null;
         }
 
