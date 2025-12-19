@@ -8,6 +8,33 @@ if (!defined('APP_ROOT')) {
     define('APP_ROOT', dirname(__DIR__));
 }
 
+// Definir URL base do sistema
+if (!defined('BASE_URL')) {
+    // Detectar protocolo
+    $protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off' || $_SERVER['SERVER_PORT'] == 443) ? "https://" : "http://";
+
+    // Detectar host e porta
+    $host = $_SERVER['HTTP_HOST'];
+
+    // Detectar caminho base (remove /public/ e tudo depois)
+    $scriptPath = dirname($_SERVER['SCRIPT_NAME']);
+
+    // Se estamos em /public ou /public/admin, voltar para /public
+    if (strpos($scriptPath, '/public') !== false) {
+        $basePath = substr($scriptPath, 0, strpos($scriptPath, '/public')) . '/public';
+    } else {
+        $basePath = $scriptPath;
+    }
+
+    define('BASE_URL', $protocol . $host . $basePath);
+}
+
+// Função auxiliar para gerar URLs
+function url($path = '') {
+    $path = ltrim($path, '/');
+    return BASE_URL . ($path ? '/' . $path : '');
+}
+
 // Carregar configurações
 $configFile = APP_ROOT . '/config/config.php';
 

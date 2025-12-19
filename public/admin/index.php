@@ -51,7 +51,7 @@ $usuariosAtivos = $db->fetchAll(
                     <div class="card-body">
                         <h6>Usuários</h6>
                         <h3><?php echo $stats['total_usuarios']; ?></h3>
-                        <a href="usuarios.php" class="text-white"><small>Ver todos →</small></a>
+                        <a href="<?php echo url('admin/usuarios.php'); ?>" class="text-white"><small>Ver todos →</small></a>
                     </div>
                 </div>
             </div>
@@ -61,7 +61,7 @@ $usuariosAtivos = $db->fetchAll(
                     <div class="card-body">
                         <h6>Importações</h6>
                         <h3><?php echo $stats['total_importacoes']; ?></h3>
-                        <a href="../upload.php" class="text-white"><small>Nova importação →</small></a>
+                        <a href="<?php echo url('upload.php'); ?>" class="text-white"><small>Nova importação →</small></a>
                     </div>
                 </div>
             </div>
@@ -71,7 +71,7 @@ $usuariosAtivos = $db->fetchAll(
                     <div class="card-body">
                         <h6>Títulos Importados</h6>
                         <h3><?php echo number_format($stats['total_titulos'], 0, ',', '.'); ?></h3>
-                        <a href="../relatorios.php" class="text-white"><small>Ver relatórios →</small></a>
+                        <a href="<?php echo url('relatorios.php'); ?>" class="text-white"><small>Ver relatórios →</small></a>
                     </div>
                 </div>
             </div>
@@ -81,7 +81,7 @@ $usuariosAtivos = $db->fetchAll(
                     <div class="card-body">
                         <h6>Logs (7 dias)</h6>
                         <h3><?php echo number_format($stats['total_logs'], 0, ',', '.'); ?></h3>
-                        <a href="logs.php" class="text-white text-decoration-none"><small>Ver logs →</small></a>
+                        <a href="<?php echo url('admin/logs.php'); ?>" class="text-white text-decoration-none"><small>Ver logs →</small></a>
                     </div>
                 </div>
             </div>
@@ -115,7 +115,7 @@ $usuariosAtivos = $db->fetchAll(
                                 <?php endforeach; ?>
                             </tbody>
                         </table>
-                        <a href="logs.php" class="btn btn-sm btn-outline-primary">Ver todos os logs</a>
+                        <a href="<?php echo url('admin/logs.php'); ?>" class="btn btn-sm btn-outline-primary">Ver todos os logs</a>
                     </div>
                 </div>
             </div>
@@ -144,7 +144,7 @@ $usuariosAtivos = $db->fetchAll(
                                 <?php endforeach; ?>
                             </tbody>
                         </table>
-                        <a href="usuarios.php" class="btn btn-sm btn-outline-primary">Gerenciar usuários</a>
+                        <a href="<?php echo url('admin/usuarios.php'); ?>" class="btn btn-sm btn-outline-primary">Gerenciar usuários</a>
                     </div>
                 </div>
             </div>

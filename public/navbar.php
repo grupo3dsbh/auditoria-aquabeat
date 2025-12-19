@@ -1,6 +1,6 @@
 <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
     <div class="container-fluid">
-        <a class="navbar-brand" href="index.php">
+        <a class="navbar-brand" href="<?php echo url(); ?>">
             <i class="bi bi-graph-up-arrow"></i> Auditoria Aquabeat
         </a>
 
@@ -11,19 +11,19 @@
         <div class="collapse navbar-collapse" id="navbarNav">
             <ul class="navbar-nav me-auto">
                 <li class="nav-item">
-                    <a class="nav-link" href="index.php">
+                    <a class="nav-link" href="<?php echo url('index.php'); ?>">
                         <i class="bi bi-speedometer2"></i> Dashboard
                     </a>
                 </li>
 
                 <li class="nav-item">
-                    <a class="nav-link" href="relatorios.php">
+                    <a class="nav-link" href="<?php echo url('relatorios.php'); ?>">
                         <i class="bi bi-file-earmark-bar-graph"></i> Relatórios
                     </a>
                 </li>
 
                 <li class="nav-item">
-                    <a class="nav-link" href="upload.php">
+                    <a class="nav-link" href="<?php echo url('upload.php'); ?>">
                         <i class="bi bi-cloud-upload"></i> Importar CSV
                     </a>
                 </li>
@@ -35,13 +35,13 @@
                     </a>
                     <ul class="dropdown-menu">
                         <?php if (Auth::isAdmin()): ?>
-                        <li><a class="dropdown-item" href="admin/index.php"><i class="bi bi-house"></i> Painel Admin</a></li>
-                        <li><a class="dropdown-item" href="admin/usuarios.php"><i class="bi bi-people"></i> Usuários</a></li>
-                        <li><a class="dropdown-item" href="admin/configuracoes.php"><i class="bi bi-sliders"></i> Configurações</a></li>
-                        <li><a class="dropdown-item" href="admin/logs.php"><i class="bi bi-clock-history"></i> Logs</a></li>
+                        <li><a class="dropdown-item" href="<?php echo url('admin/index.php'); ?>"><i class="bi bi-house"></i> Painel Admin</a></li>
+                        <li><a class="dropdown-item" href="<?php echo url('admin/usuarios.php'); ?>"><i class="bi bi-people"></i> Usuários</a></li>
+                        <li><a class="dropdown-item" href="<?php echo url('admin/configuracoes.php'); ?>"><i class="bi bi-sliders"></i> Configurações</a></li>
+                        <li><a class="dropdown-item" href="<?php echo url('admin/logs.php'); ?>"><i class="bi bi-clock-history"></i> Logs</a></li>
                         <li><hr class="dropdown-divider"></li>
                         <?php endif; ?>
-                        <li><a class="dropdown-item" href="importacoes.php"><i class="bi bi-list"></i> Histórico de Importações</a></li>
+                        <li><a class="dropdown-item" href="<?php echo url('importacoes.php'); ?>"><i class="bi bi-list"></i> Histórico de Importações</a></li>
                     </ul>
                 </li>
                 <?php endif; ?>
@@ -53,9 +53,9 @@
                         <i class="bi bi-person-circle"></i> <?php echo sanitize(Auth::user()['nome']); ?>
                     </a>
                     <ul class="dropdown-menu dropdown-menu-end">
-                        <li><a class="dropdown-item" href="perfil.php"><i class="bi bi-person"></i> Meu Perfil</a></li>
+                        <li><a class="dropdown-item" href="<?php echo url('perfil.php'); ?>"><i class="bi bi-person"></i> Meu Perfil</a></li>
                         <li><hr class="dropdown-divider"></li>
-                        <li><a class="dropdown-item" href="logout.php"><i class="bi bi-box-arrow-right"></i> Sair</a></li>
+                        <li><a class="dropdown-item" href="<?php echo url('logout.php'); ?>"><i class="bi bi-box-arrow-right"></i> Sair</a></li>
                     </ul>
                 </li>
             </ul>

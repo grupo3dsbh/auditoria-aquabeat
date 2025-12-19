@@ -125,7 +125,7 @@ if (Auth::isAdmin()) {
                             <button type="submit" class="btn btn-primary">
                                 <i class="bi bi-search"></i> Filtrar
                             </button>
-                            <a href="logs.php" class="btn btn-secondary">
+                            <a href="<?php echo url('admin/logs.php'); ?>" class="btn btn-secondary">
                                 <i class="bi bi-x-circle"></i>
                             </a>
                         </div>
