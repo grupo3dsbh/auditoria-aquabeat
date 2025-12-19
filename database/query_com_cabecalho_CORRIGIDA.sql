@@ -180,8 +180,8 @@ GROUP BY
     up.StatusTitulo,
     pp.DataPrimeiraVenda
 
-ORDER BY
-    pp.DataPrimeiraVenda DESC;
+-- ORDER BY no UNION usa número da coluna (8 = DataPrimeiraVenda)
+ORDER BY 8 DESC;
 
 GO
 
