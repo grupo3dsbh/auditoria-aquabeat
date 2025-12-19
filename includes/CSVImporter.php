@@ -371,11 +371,23 @@ class CSVImporter {
     }
 
     /**
-     * Inserir lote de dados
+     * Inserir lote de dados (com UPSERT - atualiza se existir)
      */
     private function insertBatch($batch) {
         foreach ($batch as $data) {
-            $this->db->insert('titulos', $data);
+            // Verificar se já existe um título com este numero_titulo e importacao_id
+            $existing = $this->db->fetchOne(
+                "SELECT id FROM titulos WHERE numero_titulo = ? AND importacao_id = ?",
+                [$data['numero_titulo'], $data['importacao_id']]
+            );
+
+            if ($existing) {
+                // Atualizar registro existente se houver diferenças
+                $this->db->update('titulos', $data, 'id = ?', [$existing['id']]);
+            } else {
+                // Inserir novo registro
+                $this->db->insert('titulos', $data);
+            }
         }
     }
 
