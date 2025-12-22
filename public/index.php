@@ -47,18 +47,24 @@ if ($ultimaImportacao) {
     }
 }
 
-// Top consultores com problema (período filtrado)
+// Top consultores com maior inadimplência (apenas consultores com 3+ vendas)
 $topConsultoresProblema = [];
 if ($ultimaImportacao) {
     $topConsultoresProblema = $db->fetchAll("
         SELECT
             promotor,
             COUNT(*) as total_vendas,
-            COUNT(CASE WHEN status_inadimplencia LIKE 'INADIMPLENTE%' THEN 1 END) as total_inadimplentes,
-            ROUND(COUNT(CASE WHEN status_inadimplencia LIKE 'INADIMPLENTE%' THEN 1 END) * 100.0 / COUNT(*), 2) as taxa_inadimplencia_geral,
+            COUNT(CASE WHEN status_inadimplencia LIKE 'INADIMPLENTE%'
+                  AND status_inadimplencia NOT LIKE '%Requer análise%' THEN 1 END) as total_inadimplentes,
+            ROUND(COUNT(CASE WHEN status_inadimplencia LIKE 'INADIMPLENTE%'
+                  AND status_inadimplencia NOT LIKE '%Requer análise%' THEN 1 END) * 100.0 / COUNT(*), 2) as taxa_inadimplencia,
+            -- Primeira parcela paga (todos, para destacar coluna separada)
+            COUNT(CASE WHEN status_inadimplencia LIKE '%1ª parcela%' THEN 1 END) as apenas_1a_parcela,
             CASE
-                WHEN COUNT(CASE WHEN status_inadimplencia LIKE 'INADIMPLENTE%' THEN 1 END) * 100.0 / COUNT(*) >= 50 THEN 'ALTO RISCO'
-                WHEN COUNT(CASE WHEN status_inadimplencia LIKE 'INADIMPLENTE%' THEN 1 END) * 100.0 / COUNT(*) >= 30 THEN 'MÉDIO RISCO'
+                WHEN COUNT(CASE WHEN status_inadimplencia LIKE 'INADIMPLENTE%'
+                      AND status_inadimplencia NOT LIKE '%Requer análise%' THEN 1 END) * 100.0 / COUNT(*) >= 50 THEN 'ALTO RISCO'
+                WHEN COUNT(CASE WHEN status_inadimplencia LIKE 'INADIMPLENTE%'
+                      AND status_inadimplencia NOT LIKE '%Requer análise%' THEN 1 END) * 100.0 / COUNT(*) >= 30 THEN 'MÉDIO RISCO'
                 ELSE 'BAIXO'
             END as nivel_risco
         FROM titulos
@@ -66,19 +72,45 @@ if ($ultimaImportacao) {
           AND data_primeira_venda BETWEEN ? AND ?
           AND promotor IS NOT NULL
         GROUP BY promotor
-        HAVING total_inadimplentes > 0
-        ORDER BY taxa_inadimplencia_geral DESC
-        LIMIT 5
+        HAVING COUNT(*) >= 3 AND total_inadimplentes > 0
+        ORDER BY total_inadimplentes DESC, taxa_inadimplencia DESC
+        LIMIT 10
     ", [$importacaoId, $dataInicio . ' 00:00:00', $dataFim . ' 23:59:59']);
 }
 
-// Top cartões de risco
+// Top cartões duplicados (usados em múltiplos títulos) - INDICADOR DE FRAUDE
 $topCartoesRisco = [];
 if ($ultimaImportacao) {
-    $topCartoesRisco = $db->fetchAll(
-        "SELECT * FROM analise_cartoes WHERE importacao_id = ? AND nivel_risco IN ('ALTO RISCO', 'FRAUDE PROVÁVEL') ORDER BY taxa_inadimplencia_cartao DESC LIMIT 5",
-        [$importacaoId]
-    );
+    $topCartoesRisco = $db->fetchAll("
+        SELECT
+            numero_cartao,
+            bandeira_cartao as bandeira,
+            COUNT(*) as total_titulos,
+            COUNT(DISTINCT titular_cpf) as total_documentos,
+            GROUP_CONCAT(DISTINCT promotor SEPARATOR ', ') as consultores,
+            CASE
+                WHEN bandeira_cartao LIKE '%DEBITO%' OR bandeira_cartao LIKE '%DEBIT%' THEN 'DÉBITO'
+                WHEN bandeira_cartao LIKE '%CREDITO%' OR bandeira_cartao LIKE '%CREDIT%' THEN 'CRÉDITO'
+                ELSE 'DESCONHECIDO'
+            END as tipo_cartao,
+            CASE
+                WHEN COUNT(*) >= 10 THEN 'ALTO RISCO'
+                WHEN COUNT(*) >= 5 THEN 'MÉDIO RISCO'
+                ELSE 'BAIXO RISCO'
+            END as nivel_risco
+        FROM titulos
+        WHERE importacao_id = ?
+          AND data_primeira_venda BETWEEN ? AND ?
+          AND numero_cartao IS NOT NULL
+          AND numero_cartao != ''
+          AND numero_cartao != 'NULL'
+        GROUP BY numero_cartao, bandeira_cartao
+        HAVING COUNT(*) >= 2
+        ORDER BY
+            CASE WHEN bandeira_cartao LIKE '%DEBITO%' OR bandeira_cartao LIKE '%DEBIT%' THEN 0 ELSE 1 END,
+            COUNT(*) DESC
+        LIMIT 5
+    ", [$importacaoId, $dataInicio . ' 00:00:00', $dataFim . ' 23:59:59']);
 }
 ?>
 <!DOCTYPE html>
@@ -161,35 +193,47 @@ if ($ultimaImportacao) {
             </div>
 
             <div class="row">
-                <!-- Top Consultores com Problema -->
+                <!-- Top Consultores com Maior Inadimplência -->
                 <div class="col-md-6">
                     <div class="card">
                         <div class="card-header bg-danger text-white">
-                            <h5><i class="bi bi-exclamation-triangle"></i> Top 5 Consultores com Maior Inadimplência</h5>
+                            <h5><i class="bi bi-trophy"></i> Top 10 Consultores com Inadimplência</h5>
                         </div>
-                        <div class="card-body">
+                        <div class="card-body" style="max-height: 500px; overflow-y: auto;">
                             <?php if (empty($topConsultoresProblema)): ?>
                                 <p class="text-muted">Nenhum dado disponível.</p>
                             <?php else: ?>
                                 <table class="table table-sm table-hover">
                                     <thead>
                                         <tr>
+                                            <th>#</th>
                                             <th>Consultor</th>
-                                            <th class="text-end">Vendas</th>
-                                            <th class="text-end">Taxa Inadimplência</th>
-                                            <th class="text-center">Nível</th>
+                                            <th class="text-end">Inadimp.</th>
+                                            <th class="text-end">Taxa</th>
+                                            <th class="text-center">1ª Parc.</th>
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        <?php foreach ($topConsultoresProblema as $consultor): ?>
+                                        <?php $rank = 1; foreach ($topConsultoresProblema as $consultor): ?>
                                             <tr>
-                                                <td><?php echo sanitize($consultor['promotor']); ?></td>
-                                                <td class="text-end"><?php echo $consultor['total_vendas']; ?></td>
-                                                <td class="text-end"><?php echo formatPercentage($consultor['taxa_inadimplencia_geral'], 1); ?></td>
-                                                <td class="text-center">
-                                                    <span class="badge bg-<?php echo getRiskBadgeClass($consultor['nivel_risco']); ?>">
-                                                        <?php echo $consultor['nivel_risco']; ?>
+                                                <td><?php echo $rank++; ?></td>
+                                                <td>
+                                                    <a href="relatorios.php?promotor=<?php echo urlencode($consultor['promotor']); ?>&status_inadimplencia=INADIMPLENTE">
+                                                        <?php echo sanitize($consultor['promotor']); ?>
+                                                    </a>
+                                                </td>
+                                                <td class="text-end">
+                                                    <span class="badge bg-danger">
+                                                        <?php echo $consultor['total_inadimplentes']; ?>/<?php echo $consultor['total_vendas']; ?>
                                                     </span>
+                                                </td>
+                                                <td class="text-end"><?php echo formatPercentage($consultor['taxa_inadimplencia'], 1); ?></td>
+                                                <td class="text-center">
+                                                    <?php if ($consultor['apenas_1a_parcela'] > 0): ?>
+                                                        <span class="text-muted">-</span>
+                                                    <?php else: ?>
+                                                        <span class="text-muted">-</span>
+                                                    <?php endif; ?>
                                                 </td>
                                             </tr>
                                         <?php endforeach; ?>
@@ -203,15 +247,16 @@ if ($ultimaImportacao) {
                     </div>
                 </div>
 
-                <!-- Top Cartões de Risco -->
+                <!-- Top Cartões Duplicados (Indicador de Fraude) -->
                 <div class="col-md-6">
                     <div class="card">
                         <div class="card-header bg-warning">
                             <h5><i class="bi bi-credit-card"></i> Top 5 Cartões de Alto Risco</h5>
+                            <small class="text-dark">Cartões usados em múltiplos títulos</small>
                         </div>
-                        <div class="card-body">
+                        <div class="card-body" style="max-height: 500px; overflow-y: auto;">
                             <?php if (empty($topCartoesRisco)): ?>
-                                <p class="text-muted">Nenhum cartão de risco identificado.</p>
+                                <p class="text-muted">Nenhum cartão duplicado identificado.</p>
                             <?php else: ?>
                                 <table class="table table-sm table-hover">
                                     <thead>
@@ -224,13 +269,18 @@ if ($ultimaImportacao) {
                                     </thead>
                                     <tbody>
                                         <?php foreach ($topCartoesRisco as $cartao): ?>
-                                            <tr>
+                                            <tr <?php if ($cartao['tipo_cartao'] == 'DÉBITO'): ?>class="table-danger"<?php endif; ?>>
                                                 <td>
-                                                    <?php echo sanitize($cartao['numero_cartao']); ?><br>
+                                                    <a href="relatorios.php?view=cartoes&numero_cartao=<?php echo urlencode($cartao['numero_cartao']); ?>">
+                                                        <?php echo sanitize($cartao['numero_cartao']); ?>
+                                                    </a><br>
                                                     <small class="text-muted"><?php echo $cartao['bandeira']; ?></small>
+                                                    <?php if ($cartao['tipo_cartao'] == 'DÉBITO'): ?>
+                                                        <span class="badge bg-danger">DÉBITO</span>
+                                                    <?php endif; ?>
                                                 </td>
-                                                <td class="text-end"><?php echo $cartao['total_titulos_no_cartao']; ?></td>
-                                                <td class="text-end"><?php echo $cartao['total_documentos_no_cartao']; ?></td>
+                                                <td class="text-end"><?php echo $cartao['total_titulos']; ?></td>
+                                                <td class="text-end"><?php echo $cartao['total_documentos']; ?></td>
                                                 <td class="text-center">
                                                     <span class="badge bg-<?php echo getRiskBadgeClass($cartao['nivel_risco']); ?>">
                                                         <?php echo $cartao['nivel_risco']; ?>
