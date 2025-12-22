@@ -332,58 +332,75 @@ $promotores = $db->fetchAll("
 
         /* Cores por tipo de inadimplência - Força máxima de especificidade */
 
-        /* CATEGORIAS ESPECIAIS - Vermelho claro/Rosa */
+        /* CATEGORIAS ESPECIAIS - CORES VIVAS */
         table.table tbody tr.inadimplente-1parcela,
         table.table tbody tr.inadimplente-1parcela > td {
-            background-color: #ffebee !important;
+            background-color: #ff6b9d !important; /* Rosa vivo */
+            color: white !important;
+            font-weight: 500;
         }
         table.table tbody tr.inadimplente-2parcelas,
         table.table tbody tr.inadimplente-2parcelas > td {
-            background-color: #ffe0b2 !important;
+            background-color: #ff9800 !important; /* Laranja vivo */
+            color: white !important;
+            font-weight: 500;
         }
 
-        /* NOVAS CATEGORIAS POR TEMPO */
-        /* Até 3 meses - Amarelo claro (premiação) */
+        /* NOVAS CATEGORIAS POR TEMPO - CORES MAIS VIVAS */
+        /* Até 3 meses - Amarelo forte (premiação) */
         table.table tbody tr.inadimplente-ate3,
         table.table tbody tr.inadimplente-ate3 > td {
-            background-color: #fff9c4 !important;
+            background-color: #ffeb3b !important;
+            color: #000 !important;
+            font-weight: 500;
         }
-        /* 3 a 6 meses - Laranja claro (experiência) */
+        /* 3 a 6 meses - Laranja vivo (experiência) */
         table.table tbody tr.inadimplente-3a6,
         table.table tbody tr.inadimplente-3a6 > td {
-            background-color: #ffe0b2 !important;
+            background-color: #ff9800 !important;
+            color: white !important;
+            font-weight: 500;
         }
-        /* 6 a 9 meses - Laranja escuro (expectativa) */
+        /* 6 a 9 meses - Laranja escuro forte (expectativa) */
         table.table tbody tr.inadimplente-6a9,
         table.table tbody tr.inadimplente-6a9 > td {
-            background-color: #ffcc80 !important;
+            background-color: #ff6f00 !important;
+            color: white !important;
+            font-weight: 500;
         }
-        /* 9 a 12 meses - Vermelho claro */
+        /* 9 a 12 meses - Vermelho forte */
         table.table tbody tr.inadimplente-9a12,
         table.table tbody tr.inadimplente-9a12 > td {
-            background-color: #ffcdd2 !important;
+            background-color: #f44336 !important;
+            color: white !important;
+            font-weight: 500;
         }
-        /* Mais de 12 meses - Vermelho escuro (crônico) */
+        /* Mais de 12 meses - Vermelho escuro intenso (crônico) */
         table.table tbody tr.inadimplente-12mais,
         table.table tbody tr.inadimplente-12mais > td {
-            background-color: #ef5350 !important;
+            background-color: #c62828 !important;
             color: white !important;
+            font-weight: bold;
         }
 
         /* CATEGORIAS ANTIGAS - Manter para compatibilidade */
         table.table tbody tr.inadimplente-menos50,
         table.table tbody tr.inadimplente-menos50 > td {
-            background-color: #fff9c4 !important;
+            background-color: #ffeb3b !important;
+            color: #000 !important;
         }
         table.table tbody tr.inadimplente-mais50,
         table.table tbody tr.inadimplente-mais50 > td {
-            background-color: #ffcdd2 !important;
+            background-color: #f44336 !important;
+            color: white !important;
         }
 
-        /* ADIMPLENTE - Verde */
+        /* ADIMPLENTE - Verde vivo */
         table.table tbody tr.adimplente,
         table.table tbody tr.adimplente > td {
-            background-color: #e8f5e9 !important;
+            background-color: #4caf50 !important;
+            color: white !important;
+            font-weight: 500;
         }
 
         /* HOVER - escurece levemente */
@@ -896,8 +913,17 @@ $promotores = $db->fetchAll("
                     <button class="btn btn-outline-secondary" onclick="ordenar('nome_titular', '<?php echo $orderDir == 'ASC' ? 'DESC' : 'ASC'; ?>')">
                         <i class="bi bi-sort-alpha-down"></i> Nome
                     </button>
+                    <button class="btn btn-outline-secondary" onclick="ordenar('promotor', 'ASC')">
+                        <i class="bi bi-person"></i> Promotor
+                    </button>
+                    <button class="btn btn-outline-secondary" onclick="ordenar('status_titulo', 'ASC')">
+                        <i class="bi bi-flag"></i> Status
+                    </button>
                     <button class="btn btn-outline-secondary" onclick="ordenar('status_inadimplencia', 'ASC')">
-                        <i class="bi bi-palette"></i> Cor
+                        <i class="bi bi-palette"></i> Inadimplência (Cor)
+                    </button>
+                    <button class="btn btn-outline-secondary" onclick="ordenar('qtd_parcelas_pagas', 'ASC')">
+                        <i class="bi bi-cash-stack"></i> Parcelas
                     </button>
                     <button class="btn btn-outline-secondary" onclick="ordenar('data_primeira_venda', 'DESC')">
                         <i class="bi bi-calendar"></i> Data
@@ -930,45 +956,45 @@ $promotores = $db->fetchAll("
                                 // CATEGORIAS ESPECIAIS
                                 if ($status == 'INADIMPLENTE - Apenas 1ª Parcela') {
                                     $rowClass = 'inadimplente-1parcela';
-                                    $rowStyle = 'background-color: #ffebee !important;';
+                                    $rowStyle = 'background-color: #ff6b9d !important; color: white !important; font-weight: 500;';
                                 } elseif ($status == 'INADIMPLENTE - Apenas 2 Parcelas') {
                                     $rowClass = 'inadimplente-2parcelas';
-                                    $rowStyle = 'background-color: #ffe0b2 !important;';
+                                    $rowStyle = 'background-color: #ff9800 !important; color: white !important; font-weight: 500;';
                                 }
                                 // NOVAS CATEGORIAS POR TEMPO
                                 elseif ($status == 'INADIMPLENTE - Até 3 meses') {
                                     $rowClass = 'inadimplente-ate3';
-                                    $rowStyle = 'background-color: #fff9c4 !important;';
+                                    $rowStyle = 'background-color: #ffeb3b !important; color: #000 !important; font-weight: 500;';
                                 } elseif ($status == 'INADIMPLENTE - 3 a 6 meses') {
                                     $rowClass = 'inadimplente-3a6';
-                                    $rowStyle = 'background-color: #ffe0b2 !important;';
+                                    $rowStyle = 'background-color: #ff9800 !important; color: white !important; font-weight: 500;';
                                 } elseif ($status == 'INADIMPLENTE - 6 a 9 meses') {
                                     $rowClass = 'inadimplente-6a9';
-                                    $rowStyle = 'background-color: #ffcc80 !important;';
+                                    $rowStyle = 'background-color: #ff6f00 !important; color: white !important; font-weight: 500;';
                                 } elseif ($status == 'INADIMPLENTE - 9 a 12 meses') {
                                     $rowClass = 'inadimplente-9a12';
-                                    $rowStyle = 'background-color: #ffcdd2 !important;';
+                                    $rowStyle = 'background-color: #f44336 !important; color: white !important; font-weight: 500;';
                                 } elseif ($status == 'INADIMPLENTE - Mais de 12 meses') {
                                     $rowClass = 'inadimplente-12mais';
-                                    $rowStyle = 'background-color: #ef5350 !important; color: white !important;';
+                                    $rowStyle = 'background-color: #c62828 !important; color: white !important; font-weight: bold;';
                                 }
                                 // CATEGORIAS ANTIGAS (compatibilidade)
                                 elseif ($status == 'INADIMPLENTE - Menos de 50%') {
                                     $rowClass = 'inadimplente-menos50';
-                                    $rowStyle = 'background-color: #fff9c4 !important;';
+                                    $rowStyle = 'background-color: #ffeb3b !important; color: #000 !important;';
                                 } elseif ($status == 'INADIMPLENTE - Mais de 50%') {
                                     $rowClass = 'inadimplente-mais50';
-                                    $rowStyle = 'background-color: #ffcdd2 !important;';
+                                    $rowStyle = 'background-color: #f44336 !important; color: white !important;';
                                 }
                                 // INADIMPLENTE GENÉRICO
                                 elseif (strpos($status, 'INADIMPLENTE') !== false) {
                                     $rowClass = 'inadimplente-mais50';
-                                    $rowStyle = 'background-color: #ffcdd2 !important;';
+                                    $rowStyle = 'background-color: #f44336 !important; color: white !important;';
                                 }
                                 // ADIMPLENTE
                                 elseif ($status == 'ADIMPLENTE') {
                                     $rowClass = 'adimplente';
-                                    $rowStyle = 'background-color: #e8f5e9 !important;';
+                                    $rowStyle = 'background-color: #4caf50 !important; color: white !important; font-weight: 500;';
                                 }
                             ?>
                                 <tr class="<?php echo $rowClass; ?>" style="<?php echo $rowStyle; ?>">

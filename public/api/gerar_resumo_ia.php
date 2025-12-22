@@ -18,6 +18,9 @@ try {
     $conditions = ["1=1"];
     $params = [];
 
+    // IMPORTANTE: SEMPRE filtrar apenas SFA e SBF
+    $conditions[] = "(numero_titulo LIKE 'SFA%' OR numero_titulo LIKE 'SBF%')";
+
     if ($importacaoId) {
         $conditions[] = "importacao_id = ?";
         $params[] = $importacaoId;
