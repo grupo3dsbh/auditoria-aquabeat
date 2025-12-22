@@ -334,6 +334,9 @@ if ($viewCartoes):
     $pesquisa = $_GET['pesquisa'] ?? '';
     $ordenarPor = $_GET['ordenar'] ?? 'titulos'; // titulos, cpfs, consultores, inadimplentes, bloqueados
 
+    // Definir filtro de prefixos (SFA/SBF)
+    $wherePrefixos = " AND (numero_titulo LIKE 'SFA%' OR numero_titulo LIKE 'SBF%')";
+
     // Se tem um cartão específico, buscar detalhes
     if ($numeroCartao) {
         // Ordenação para detalhes do cartão
@@ -407,11 +410,12 @@ if ($viewCartoes):
                 SUM(CASE WHEN status_titulo = 'Ativo' THEN 1 ELSE 0 END) as ativos,
                 SUM(CASE WHEN status_titulo = 'Bloqueado' THEN 1 ELSE 0 END) as bloqueados,
                 SUM(CASE WHEN status_titulo = 'Cancelado' THEN 1 ELSE 0 END) as cancelados,
-                MAX(CASE
-                    WHEN bandeira LIKE '%DEBITO%' OR bandeira LIKE '%DEBIT%' THEN 'DÉBITO'
-                    WHEN bandeira LIKE '%CREDITO%' OR bandeira LIKE '%CREDIT%' THEN 'CRÉDITO'
+                CASE
+                    WHEN MAX(CASE WHEN bandeira LIKE '%DEBITO%' OR bandeira LIKE '%DEBIT%' THEN 1 ELSE 0 END) = 1 THEN 'DÉBITO'
+                    WHEN MAX(CASE WHEN bandeira LIKE '%CREDITO%' OR bandeira LIKE '%CREDIT%' THEN 1 ELSE 0 END) = 1 THEN 'CRÉDITO'
                     ELSE 'OUTRO'
-                END) as tipo_principal
+                END as tipo_principal,
+                MAX(CASE WHEN bandeira LIKE '%DEBITO%' OR bandeira LIKE '%DEBIT%' THEN 1 ELSE 0 END) as tem_debito
             FROM titulos
             WHERE numero_cartao IS NOT NULL
               AND numero_cartao != ''
@@ -421,7 +425,7 @@ if ($viewCartoes):
             GROUP BY numero_cartao
             HAVING COUNT(*) >= 2
             ORDER BY
-                CASE WHEN MAX(CASE WHEN bandeira LIKE '%DEBITO%' OR bandeira LIKE '%DEBIT%' THEN 1 ELSE 0 END) = 1 THEN 0 ELSE 1 END,
+                tem_debito DESC,
                 {$orderBy}
         ", $paramsPesquisa);
 
@@ -437,6 +441,7 @@ if ($viewCartoes):
         ];
 
         // Top 3 Consultores com mais cartões e alta inadimplência/bloqueio
+        // IMPORTANTE: Considerar apenas CARTÕES COM MÚLTIPLOS USOS (2+ títulos no mesmo cartão)
         $top3Consultores = $db->fetchAll("
             SELECT
                 promotor,
@@ -444,13 +449,24 @@ if ($viewCartoes):
                 COUNT(*) as total_titulos,
                 SUM(CASE WHEN status_inadimplencia LIKE 'INADIMPLENTE%' THEN 1 ELSE 0 END) as inadimplentes,
                 SUM(CASE WHEN status_titulo IN ('Bloqueado', 'Cancelado') THEN 1 ELSE 0 END) as bloqueados,
-                ROUND(100 * SUM(CASE WHEN status_inadimplencia LIKE 'INADIMPLENTE%' THEN 1 ELSE 0 END) / COUNT(*), 1) as taxa_inadimplencia,
-                ROUND(100 * SUM(CASE WHEN status_titulo IN ('Bloqueado', 'Cancelado') THEN 1 ELSE 0 END) / COUNT(*), 1) as taxa_bloqueio
+                ROUND(100.0 * SUM(CASE WHEN status_inadimplencia LIKE 'INADIMPLENTE%' THEN 1 ELSE 0 END) / COUNT(*), 1) as taxa_inadimplencia,
+                ROUND(100.0 * SUM(CASE WHEN status_titulo IN ('Bloqueado', 'Cancelado') THEN 1 ELSE 0 END) / COUNT(*), 1) as taxa_bloqueio
             FROM titulos
             WHERE numero_cartao IS NOT NULL
               AND numero_cartao != ''
               AND numero_cartao != 'NULL'
               {$wherePrefixos}
+              AND numero_cartao IN (
+                  -- Subconsulta: apenas cartões usados 2+ vezes
+                  SELECT numero_cartao
+                  FROM titulos
+                  WHERE numero_cartao IS NOT NULL
+                    AND numero_cartao != ''
+                    AND numero_cartao != 'NULL'
+                    {$wherePrefixos}
+                  GROUP BY numero_cartao
+                  HAVING COUNT(*) >= 2
+              )
             GROUP BY promotor
             HAVING COUNT(DISTINCT numero_cartao) >= 2
               AND (taxa_inadimplencia >= 30 OR taxa_bloqueio >= 20)
@@ -712,20 +728,33 @@ if ($viewCartoes):
                 <div class="col-md-12">
                     <div class="card border-warning">
                         <div class="card-header bg-warning text-dark">
-                            <h5><i class="bi bi-exclamation-triangle"></i> Top 3 Consultores - Alto Risco (Múltiplos Cartões + Alta Inadimplência/Bloqueio)</h5>
+                            <h5><i class="bi bi-exclamation-triangle-fill"></i> Top 3 Consultores - Alto Risco (Múltiplos Cartões + Alta Inadimplência/Bloqueio)</h5>
                         </div>
                         <div class="card-body">
                             <div class="row">
                                 <?php foreach ($top3Consultores as $idx => $consultor): ?>
                                 <div class="col-md-4">
-                                    <div class="card border-<?php echo $idx === 0 ? 'danger' : 'warning'; ?> mb-2">
+                                    <div class="card mb-2 text-white <?php echo $idx === 0 ? 'bg-danger' : 'bg-warning'; ?>">
                                         <div class="card-body">
-                                            <h6 class="card-title"><?php echo ($idx + 1); ?>. <?php echo sanitize($consultor['promotor']); ?></h6>
-                                            <ul class="list-unstyled mb-0">
-                                                <li><strong><?php echo $consultor['total_cartoes_unicos']; ?></strong> cartões diferentes</li>
-                                                <li><strong><?php echo $consultor['total_titulos']; ?></strong> títulos vendidos</li>
-                                                <li class="text-danger"><strong><?php echo $consultor['taxa_inadimplencia']; ?>%</strong> inadimplência</li>
-                                                <li class="text-warning"><strong><?php echo $consultor['taxa_bloqueio']; ?>%</strong> bloqueio</li>
+                                            <div class="d-flex align-items-start mb-2">
+                                                <div class="me-2">
+                                                    <i class="bi <?php echo $idx === 0 ? 'bi-trophy-fill' : ($idx === 1 ? 'bi-award-fill' : 'bi-star-fill'); ?>" style="font-size: 2rem;"></i>
+                                                </div>
+                                                <div class="flex-grow-1">
+                                                    <h6 class="card-title mb-0 <?php echo $idx === 0 ? 'text-white' : 'text-dark'; ?>">
+                                                        <strong><?php echo ($idx + 1); ?>º Lugar</strong>
+                                                    </h6>
+                                                    <p class="mb-2 <?php echo $idx === 0 ? 'text-white' : 'text-dark'; ?>">
+                                                        <strong><?php echo sanitize($consultor['promotor']); ?></strong>
+                                                    </p>
+                                                </div>
+                                            </div>
+                                            <hr class="<?php echo $idx === 0 ? 'bg-white' : 'bg-dark'; ?>" style="opacity: 0.3;">
+                                            <ul class="list-unstyled mb-0 <?php echo $idx === 0 ? 'text-white' : 'text-dark'; ?>">
+                                                <li><i class="bi bi-credit-card-2-front"></i> <strong><?php echo $consultor['total_cartoes_unicos']; ?></strong> cartões diferentes</li>
+                                                <li><i class="bi bi-receipt"></i> <strong><?php echo $consultor['total_titulos']; ?></strong> títulos vendidos</li>
+                                                <li><i class="bi bi-exclamation-circle-fill"></i> <strong><?php echo $consultor['taxa_inadimplencia']; ?>%</strong> inadimplência</li>
+                                                <li><i class="bi bi-x-circle-fill"></i> <strong><?php echo $consultor['taxa_bloqueio']; ?>%</strong> bloqueio</li>
                                             </ul>
                                         </div>
                                     </div>
