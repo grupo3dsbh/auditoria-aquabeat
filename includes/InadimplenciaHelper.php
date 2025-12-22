@@ -54,10 +54,8 @@ class InadimplenciaHelper {
 
         // Para títulos ATIVOS, aplicar lógica baseada em tempo
 
-        // Calcular meses desde a primeira venda
+        // Calcular parcelas esperadas até hoje (incluindo a 1ª paga no dia da compra)
         $mesesDesdeVenda = self::calcularMesesDesdeVenda($dataPrimeiraVenda);
-
-        // Parcelas esperadas = meses desde a venda (1 parcela por mês)
         $parcelasEsperadas = $mesesDesdeVenda;
 
         // Se pagou todas as parcelas do plano = ADIMPLENTE
@@ -65,24 +63,30 @@ class InadimplenciaHelper {
             return 'ADIMPLENTE';
         }
 
-        // Se pagou todas as parcelas esperadas até agora = ADIMPLENTE
-        if ($parcelasPagas >= $parcelasEsperadas) {
+        // REGRA CRÍTICA: Só considera INADIMPLENTE se tiver 2 OU MAIS parcelas em atraso
+        // Com apenas 1 parcela em atraso ainda é considerado ADIMPLENTE
+        $parcelasEmAtraso = max(0, $parcelasEsperadas - $parcelasPagas);
+
+        // Se está em dia OU tem apenas 1 parcela em atraso = ADIMPLENTE
+        if ($parcelasEmAtraso <= 1) {
             return 'ADIMPLENTE';
         }
 
-        // Se chegou aqui, está inadimplente (pagou menos que o esperado)
-        // Classificar por TEMPO DE INADIMPLÊNCIA (meses em atraso)
+        // Se chegou aqui, tem 2 ou mais parcelas em atraso = INADIMPLENTE
+        // Classificar por TEMPO DE INADIMPLÊNCIA
 
-        // Calcular meses em atraso
-        $mesesEmAtraso = $parcelasEsperadas - $parcelasPagas;
+        // Calcular meses em atraso (já sabemos que tem pelo menos 2)
+        $mesesEmAtraso = $parcelasEmAtraso;
 
         // Caso especial: Apenas 1ª parcela paga (requer análise - pode ser premiação)
-        if ($parcelasPagas == 1 && $mesesDesdeVenda > 1) {
+        // Já sabemos que tem pelo menos 2 parcelas em atraso
+        if ($parcelasPagas == 1) {
             return 'INADIMPLENTE - Requer análise (1ª parcela)';
         }
 
         // Caso especial: Apenas 2 parcelas pagas (requer análise - pode ser premiação)
-        if ($parcelasPagas == 2 && $mesesDesdeVenda > 2) {
+        // Já sabemos que tem pelo menos 2 parcelas em atraso
+        if ($parcelasPagas == 2) {
             return 'INADIMPLENTE - Requer análise (2 parcelas)';
         }
 
@@ -108,10 +112,11 @@ class InadimplenciaHelper {
     }
 
     /**
-     * Calcular quantos meses se passaram desde a data de venda
+     * Calcular quantas parcelas deveriam ter sido pagas até hoje
+     * IMPORTANTE: 1ª parcela é paga NO DIA DA COMPRA!
      *
      * @param string|DateTime $dataVenda Data da primeira venda
-     * @return int Número de meses (mínimo 1)
+     * @return int Número de parcelas esperadas (incluindo a do dia da compra)
      */
     public static function calcularMesesDesdeVenda($dataVenda) {
         if (is_string($dataVenda)) {
@@ -120,16 +125,29 @@ class InadimplenciaHelper {
 
         $hoje = new DateTime();
 
-        // Calcular diferença em meses
+        // Calcular diferença em meses completos
         $diff = $dataVenda->diff($hoje);
         $meses = ($diff->y * 12) + $diff->m;
 
-        // Se está no mesmo mês ou passou dias, conta como 1 mês
-        if ($meses == 0 || $diff->d > 0) {
+        // CORREÇÃO CRÍTICA: Só conta o mês atual se já passou o dia de vencimento
+        // Exemplo: Vendido dia 17/09/2024, hoje 22/12/2024
+        // - 1ª parcela: paga em 17/09/2024 (dia da compra)
+        // - 2ª parcela: vence 17/10/2024
+        // - 3ª parcela: vence 17/11/2024
+        // - 4ª parcela: vence 17/12/2024 (já venceu porque hoje é 22/12)
+        // - Total esperado: 4 parcelas
+
+        $diaVenda = (int)$dataVenda->format('d');
+        $diaHoje = (int)$hoje->format('d');
+
+        // Se já passou o dia de vencimento no mês atual, conta mais um mês
+        if ($diaHoje >= $diaVenda) {
             $meses++;
         }
 
-        return max(1, $meses); // Mínimo 1 mês
+        // Parcelas esperadas = $meses (inclui a parcela do dia da compra)
+        // Mínimo 1 (se comprou hoje, já pagou a 1ª no ato)
+        return max(1, $meses);
     }
 
     /**
