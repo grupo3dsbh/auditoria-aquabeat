@@ -10,6 +10,10 @@ $db = Database::getInstance();
 // Obter última importação
 $ultimaImportacao = $db->fetchOne("SELECT * FROM importacoes ORDER BY criado_em DESC LIMIT 1");
 
+// Filtro de período: 01/11/2024 até 2 meses atrás
+$dataInicio = '2024-11-01';
+$dataFim = date('Y-m-t', strtotime('-2 months')); // Último dia de 2 meses atrás
+
 // Estatísticas gerais
 $stats = [];
 
@@ -17,22 +21,55 @@ if ($ultimaImportacao) {
     $importacaoId = $ultimaImportacao['id'];
 
     $stats = [
-        'total_titulos' => $db->count('titulos', 'importacao_id = ?', [$importacaoId]),
-        'total_inadimplentes' => $db->count('titulos', "importacao_id = ? AND status_inadimplencia LIKE 'INADIMPLENTE%'", [$importacaoId]),
-        'total_consultores' => $db->count('analise_consultores', 'importacao_id = ?', [$importacaoId]),
+        'total_titulos' => $db->fetchColumn(
+            "SELECT COUNT(*) FROM titulos WHERE importacao_id = ? AND data_primeira_venda BETWEEN ? AND ?",
+            [$importacaoId, $dataInicio . ' 00:00:00', $dataFim . ' 23:59:59']
+        ) ?? 0,
+        'total_inadimplentes' => $db->fetchColumn(
+            "SELECT COUNT(*) FROM titulos WHERE importacao_id = ? AND status_inadimplencia LIKE 'INADIMPLENTE%' AND data_primeira_venda BETWEEN ? AND ?",
+            [$importacaoId, $dataInicio . ' 00:00:00', $dataFim . ' 23:59:59']
+        ) ?? 0,
+        'total_consultores' => $db->fetchColumn(
+            "SELECT COUNT(DISTINCT promotor) FROM titulos WHERE importacao_id = ? AND data_primeira_venda BETWEEN ? AND ? AND promotor IS NOT NULL",
+            [$importacaoId, $dataInicio . ' 00:00:00', $dataFim . ' 23:59:59']
+        ) ?? 0,
         'total_cartoes_risco' => $db->count('analise_cartoes', "importacao_id = ? AND nivel_risco IN ('ALTO RISCO', 'FRAUDE PROVÁVEL')", [$importacaoId]),
-        'valor_perdido' => $db->fetchColumn("SELECT SUM(saldo_restante) FROM titulos WHERE importacao_id = ?", [$importacaoId]) ?? 0,
-        'taxa_inadimplencia' => $db->fetchColumn("SELECT COUNT(*) * 100.0 / NULLIF((SELECT COUNT(*) FROM titulos WHERE importacao_id = ?), 0) FROM titulos WHERE importacao_id = ? AND status_inadimplencia LIKE 'INADIMPLENTE%'", [$importacaoId, $importacaoId]) ?? 0
+        'valor_em_risco' => $db->fetchColumn(
+            "SELECT SUM(saldo_restante) FROM titulos WHERE importacao_id = ? AND status_inadimplencia LIKE 'INADIMPLENTE%' AND data_primeira_venda BETWEEN ? AND ?",
+            [$importacaoId, $dataInicio . ' 00:00:00', $dataFim . ' 23:59:59']
+        ) ?? 0,
+        'taxa_inadimplencia' => 0
     ];
+
+    // Calcular taxa de inadimplência
+    if ($stats['total_titulos'] > 0) {
+        $stats['taxa_inadimplencia'] = ($stats['total_inadimplentes'] / $stats['total_titulos']) * 100;
+    }
 }
 
-// Top consultores com problema
+// Top consultores com problema (período filtrado)
 $topConsultoresProblema = [];
 if ($ultimaImportacao) {
-    $topConsultoresProblema = $db->fetchAll(
-        "SELECT * FROM analise_consultores WHERE importacao_id = ? ORDER BY taxa_inadimplencia_geral DESC LIMIT 5",
-        [$importacaoId]
-    );
+    $topConsultoresProblema = $db->fetchAll("
+        SELECT
+            promotor,
+            COUNT(*) as total_vendas,
+            COUNT(CASE WHEN status_inadimplencia LIKE 'INADIMPLENTE%' THEN 1 END) as total_inadimplentes,
+            ROUND(COUNT(CASE WHEN status_inadimplencia LIKE 'INADIMPLENTE%' THEN 1 END) * 100.0 / COUNT(*), 2) as taxa_inadimplencia_geral,
+            CASE
+                WHEN COUNT(CASE WHEN status_inadimplencia LIKE 'INADIMPLENTE%' THEN 1 END) * 100.0 / COUNT(*) >= 50 THEN 'ALTO RISCO'
+                WHEN COUNT(CASE WHEN status_inadimplencia LIKE 'INADIMPLENTE%' THEN 1 END) * 100.0 / COUNT(*) >= 30 THEN 'MÉDIO RISCO'
+                ELSE 'BAIXO'
+            END as nivel_risco
+        FROM titulos
+        WHERE importacao_id = ?
+          AND data_primeira_venda BETWEEN ? AND ?
+          AND promotor IS NOT NULL
+        GROUP BY promotor
+        HAVING total_inadimplentes > 0
+        ORDER BY taxa_inadimplencia_geral DESC
+        LIMIT 5
+    ", [$importacaoId, $dataInicio . ' 00:00:00', $dataFim . ' 23:59:59']);
 }
 
 // Top cartões de risco
@@ -116,7 +153,7 @@ if ($ultimaImportacao) {
                     <div class="card text-white bg-dark">
                         <div class="card-body">
                             <h6 class="card-title">Valor em Risco</h6>
-                            <h3><?php echo formatCurrency($stats['valor_perdido']); ?></h3>
+                            <h3><?php echo formatCurrency($stats['valor_em_risco']); ?></h3>
                             <small>Saldo restante inadimplentes</small>
                         </div>
                     </div>
