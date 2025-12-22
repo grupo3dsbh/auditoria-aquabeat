@@ -71,8 +71,12 @@ class InadimplenciaHelper {
         }
 
         // Se chegou aqui, está inadimplente (pagou menos que o esperado)
+        // Classificar por TEMPO DE INADIMPLÊNCIA (meses em atraso)
 
-        // Caso especial: Apenas 1ª parcela paga
+        // Calcular meses em atraso
+        $mesesEmAtraso = $parcelasEsperadas - $parcelasPagas;
+
+        // Caso especial: Apenas 1ª parcela paga (pode ser por premiação)
         if ($parcelasPagas == 1 && $mesesDesdeVenda > 1) {
             return 'INADIMPLENTE - Apenas 1ª Parcela';
         }
@@ -82,16 +86,25 @@ class InadimplenciaHelper {
             return 'INADIMPLENTE - Apenas 2 Parcelas';
         }
 
-        // Calcular porcentagem paga do ESPERADO (não do total)
-        $percentualPago = $parcelasEsperadas > 0 ? ($parcelasPagas / $parcelasEsperadas) : 0;
+        // Classificação baseada no TEMPO DESDE A VENDA (não em atraso)
+        // Isso ajuda a identificar em qual etapa o cliente parou de pagar
 
-        // Se pagou >= 50% do esperado = Menos de 50%
-        if ($percentualPago >= 0.5) {
-            return 'INADIMPLENTE - Menos de 50%';
+        if ($mesesDesdeVenda <= 3) {
+            // Até 3 meses: ainda pode ser por causa da premiação
+            return 'INADIMPLENTE - Até 3 meses';
+        } elseif ($mesesDesdeVenda <= 6) {
+            // 3-6 meses: cliente pode não ter tido boa experiência
+            return 'INADIMPLENTE - 3 a 6 meses';
+        } elseif ($mesesDesdeVenda <= 9) {
+            // 6-9 meses: questão de experiência/expectativa
+            return 'INADIMPLENTE - 6 a 9 meses';
+        } elseif ($mesesDesdeVenda <= 12) {
+            // 9-12 meses: experiência/expectativa
+            return 'INADIMPLENTE - 9 a 12 meses';
+        } else {
+            // Mais de 12 meses: inadimplência prolongada
+            return 'INADIMPLENTE - Mais de 12 meses';
         }
-
-        // Se pagou < 50% do esperado = Mais de 50%
-        return 'INADIMPLENTE - Mais de 50%';
     }
 
     /**
@@ -294,10 +307,24 @@ class InadimplenciaHelper {
         $classes = [
             'ADIMPLENTE' => 'success',
             'PARCIALMENTE ADIMPLENTE' => 'info',
-            'INADIMPLENTE - Menos de 50%' => 'warning',
+
+            // Categorias especiais
             'INADIMPLENTE - Apenas 1ª Parcela' => 'danger',
             'INADIMPLENTE - Apenas 2 Parcelas' => 'danger',
+
+            // Novas categorias por tempo (do menos grave ao mais grave)
+            'INADIMPLENTE - Até 3 meses' => 'warning',      // Amarelo - pode ser premiação
+            'INADIMPLENTE - 3 a 6 meses' => 'warning',      // Amarelo - experiência
+            'INADIMPLENTE - 6 a 9 meses' => 'danger',       // Vermelho - expectativa não atendida
+            'INADIMPLENTE - 9 a 12 meses' => 'danger',      // Vermelho - problema sério
+            'INADIMPLENTE - Mais de 12 meses' => 'danger',  // Vermelho - inadimplência crônica
+
+            // Categorias antigas (manter para compatibilidade)
+            'INADIMPLENTE - Menos de 50%' => 'warning',
             'INADIMPLENTE - Mais de 50%' => 'danger',
+
+            // Genérico
+            'INADIMPLENTE' => 'danger',
             'SEM DADOS' => 'secondary'
         ];
 

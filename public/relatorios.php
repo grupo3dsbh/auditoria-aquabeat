@@ -105,9 +105,25 @@ if (isset($_GET['parcelas_filtro']) && $_GET['parcelas_filtro'] !== '') {
 }
 
 // Filtro por CPF duplicado
+// IMPORTANTE: Considera os filtros JÁ APLICADOS para determinar quais CPFs são duplicados
 if (!empty($_GET['cpf_duplicado']) && $_GET['cpf_duplicado'] == '1') {
-    $where[] = "documento_titular IN (SELECT documento_titular FROM titulos WHERE importacao_id = ? GROUP BY documento_titular HAVING COUNT(*) > 1)";
-    $params[] = $importacaoId;
+    // Criar subquery com os mesmos filtros já aplicados
+    $whereSubquery = implode(' AND ', $where);
+    $paramsSubquery = $params;
+
+    $where[] = "documento_titular IN (
+        SELECT documento_titular
+        FROM titulos
+        WHERE " . $whereSubquery . "
+        GROUP BY documento_titular
+        HAVING COUNT(*) > 1
+    )";
+
+    // Adicionar os parâmetros da subquery
+    foreach ($paramsSubquery as $param) {
+        $params[] = $param;
+    }
+
     $filtros['cpf_duplicado'] = '1';
 }
 
@@ -314,47 +330,69 @@ $promotores = $db->fetchAll("
             table { font-size: 9pt; }
         }
 
-        /* Cores por tipo de inadimplência - Mais específico para sobrescrever Bootstrap */
-        .table > tbody > tr.inadimplente-1parcela,
-        .table tbody tr.inadimplente-1parcela {
+        /* Cores por tipo de inadimplência - Força máxima de especificidade */
+
+        /* CATEGORIAS ESPECIAIS - Vermelho claro/Rosa */
+        table.table tbody tr.inadimplente-1parcela,
+        table.table tbody tr.inadimplente-1parcela > td {
             background-color: #ffebee !important;
         }
-        .table > tbody > tr.inadimplente-2parcelas,
-        .table tbody tr.inadimplente-2parcelas {
+        table.table tbody tr.inadimplente-2parcelas,
+        table.table tbody tr.inadimplente-2parcelas > td {
             background-color: #ffe0b2 !important;
         }
-        .table > tbody > tr.inadimplente-menos50,
-        .table tbody tr.inadimplente-menos50 {
+
+        /* NOVAS CATEGORIAS POR TEMPO */
+        /* Até 3 meses - Amarelo claro (premiação) */
+        table.table tbody tr.inadimplente-ate3,
+        table.table tbody tr.inadimplente-ate3 > td {
             background-color: #fff9c4 !important;
         }
-        .table > tbody > tr.inadimplente-mais50,
-        .table tbody tr.inadimplente-mais50 {
+        /* 3 a 6 meses - Laranja claro (experiência) */
+        table.table tbody tr.inadimplente-3a6,
+        table.table tbody tr.inadimplente-3a6 > td {
+            background-color: #ffe0b2 !important;
+        }
+        /* 6 a 9 meses - Laranja escuro (expectativa) */
+        table.table tbody tr.inadimplente-6a9,
+        table.table tbody tr.inadimplente-6a9 > td {
+            background-color: #ffcc80 !important;
+        }
+        /* 9 a 12 meses - Vermelho claro */
+        table.table tbody tr.inadimplente-9a12,
+        table.table tbody tr.inadimplente-9a12 > td {
             background-color: #ffcdd2 !important;
         }
-        .table > tbody > tr.adimplente,
-        .table tbody tr.adimplente {
+        /* Mais de 12 meses - Vermelho escuro (crônico) */
+        table.table tbody tr.inadimplente-12mais,
+        table.table tbody tr.inadimplente-12mais > td {
+            background-color: #ef5350 !important;
+            color: white !important;
+        }
+
+        /* CATEGORIAS ANTIGAS - Manter para compatibilidade */
+        table.table tbody tr.inadimplente-menos50,
+        table.table tbody tr.inadimplente-menos50 > td {
+            background-color: #fff9c4 !important;
+        }
+        table.table tbody tr.inadimplente-mais50,
+        table.table tbody tr.inadimplente-mais50 > td {
+            background-color: #ffcdd2 !important;
+        }
+
+        /* ADIMPLENTE - Verde */
+        table.table tbody tr.adimplente,
+        table.table tbody tr.adimplente > td {
             background-color: #e8f5e9 !important;
         }
 
-        /* Hover mantém a cor */
-        .table-hover > tbody > tr.inadimplente-1parcela:hover,
-        .table-hover tbody tr.inadimplente-1parcela:hover {
-            background-color: #ffcdd2 !important;
+        /* HOVER - escurece levemente */
+        table.table-hover tbody tr[class*="inadimplente"]:hover,
+        table.table-hover tbody tr[class*="inadimplente"]:hover > td {
+            filter: brightness(0.9);
         }
-        .table-hover > tbody > tr.inadimplente-2parcelas:hover,
-        .table-hover tbody tr.inadimplente-2parcelas:hover {
-            background-color: #ffcc80 !important;
-        }
-        .table-hover > tbody > tr.inadimplente-menos50:hover,
-        .table-hover tbody tr.inadimplente-menos50:hover {
-            background-color: #fff59d !important;
-        }
-        .table-hover > tbody > tr.inadimplente-mais50:hover,
-        .table-hover tbody tr.inadimplente-mais50:hover {
-            background-color: #ef9a9a !important;
-        }
-        .table-hover > tbody > tr.adimplente:hover,
-        .table-hover tbody tr.adimplente:hover {
+        table.table-hover tbody tr.adimplente:hover,
+        table.table-hover tbody tr.adimplente:hover > td {
             background-color: #c8e6c9 !important;
         }
 
@@ -784,33 +822,66 @@ $promotores = $db->fetchAll("
         <!-- Legenda de Cores -->
         <div class="card mb-4">
             <div class="card-header">
-                <h6 class="mb-0"><i class="bi bi-palette"></i> Legenda de Cores</h6>
+                <h6 class="mb-0"><i class="bi bi-palette"></i> Legenda de Cores - Classificação por Tempo</h6>
             </div>
             <div class="card-body">
-                <div class="row">
-                    <div class="col-md-2">
-                        <div class="p-2 inadimplente-1parcela border rounded text-center">
-                            <small><strong>Apenas 1ª Parcela</strong></small>
+                <p class="small text-muted mb-3">
+                    <i class="bi bi-info-circle"></i>
+                    <strong>Nova classificação:</strong> identifica em qual etapa o cliente parou de pagar para análise de comportamento e estratégias de reativação.
+                </p>
+
+                <div class="row g-2">
+                    <!-- Categorias Especiais -->
+                    <div class="col-md-3">
+                        <div class="p-2 inadimplente-1parcela border rounded text-center" style="background-color: #ffebee;">
+                            <small><strong>Apenas 1ª Parcela</strong><br>
+                            <span class="text-muted">Pode ser premiação</span></small>
                         </div>
                     </div>
-                    <div class="col-md-2">
-                        <div class="p-2 inadimplente-2parcelas border rounded text-center">
-                            <small><strong>Apenas 2 Parcelas</strong></small>
+                    <div class="col-md-3">
+                        <div class="p-2 inadimplente-2parcelas border rounded text-center" style="background-color: #ffe0b2;">
+                            <small><strong>Apenas 2 Parcelas</strong><br>
+                            <span class="text-muted">Premiação</span></small>
                         </div>
                     </div>
-                    <div class="col-md-2">
-                        <div class="p-2 inadimplente-menos50 border rounded text-center">
-                            <small><strong>Menos de 50%</strong></small>
+
+                    <!-- Novas Categorias por Tempo -->
+                    <div class="col-md-3">
+                        <div class="p-2 inadimplente-ate3 border rounded text-center" style="background-color: #fff9c4;">
+                            <small><strong>Até 3 meses</strong><br>
+                            <span class="text-muted">Premiação inicial</span></small>
                         </div>
                     </div>
-                    <div class="col-md-2">
-                        <div class="p-2 inadimplente-mais50 border rounded text-center">
-                            <small><strong>Mais de 50%</strong></small>
+                    <div class="col-md-3">
+                        <div class="p-2 inadimplente-3a6 border rounded text-center" style="background-color: #ffe0b2;">
+                            <small><strong>3 a 6 meses</strong><br>
+                            <span class="text-muted">Experiência</span></small>
                         </div>
                     </div>
-                    <div class="col-md-2">
-                        <div class="p-2 adimplente border rounded text-center">
-                            <small><strong>Adimplente</strong></small>
+                    <div class="col-md-3">
+                        <div class="p-2 inadimplente-6a9 border rounded text-center" style="background-color: #ffcc80;">
+                            <small><strong>6 a 9 meses</strong><br>
+                            <span class="text-muted">Expectativa</span></small>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="p-2 inadimplente-9a12 border rounded text-center" style="background-color: #ffcdd2;">
+                            <small><strong>9 a 12 meses</strong><br>
+                            <span class="text-muted">Problema sério</span></small>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="p-2 inadimplente-12mais border rounded text-center" style="background-color: #ef5350; color: white;">
+                            <small><strong>Mais de 12 meses</strong><br>
+                            <span style="opacity: 0.9;">Crônico</span></small>
+                        </div>
+                    </div>
+
+                    <!-- Adimplente -->
+                    <div class="col-md-3">
+                        <div class="p-2 adimplente border rounded text-center" style="background-color: #e8f5e9;">
+                            <small><strong>Adimplente</strong><br>
+                            <span class="text-muted">Em dia</span></small>
                         </div>
                     </div>
                 </div>
@@ -854,20 +925,48 @@ $promotores = $db->fetchAll("
                                 // Determinar classe de cor e estilo inline (fallback)
                                 $rowClass = '';
                                 $rowStyle = '';
+                                $status = $titulo['status_inadimplencia'];
 
-                                if ($titulo['status_inadimplencia'] == 'INADIMPLENTE - Apenas 1ª Parcela') {
+                                // CATEGORIAS ESPECIAIS
+                                if ($status == 'INADIMPLENTE - Apenas 1ª Parcela') {
                                     $rowClass = 'inadimplente-1parcela';
                                     $rowStyle = 'background-color: #ffebee !important;';
-                                } elseif ($titulo['status_inadimplencia'] == 'INADIMPLENTE - Apenas 2 Parcelas') {
+                                } elseif ($status == 'INADIMPLENTE - Apenas 2 Parcelas') {
                                     $rowClass = 'inadimplente-2parcelas';
                                     $rowStyle = 'background-color: #ffe0b2 !important;';
-                                } elseif ($titulo['status_inadimplencia'] == 'INADIMPLENTE - Menos de 50%') {
+                                }
+                                // NOVAS CATEGORIAS POR TEMPO
+                                elseif ($status == 'INADIMPLENTE - Até 3 meses') {
+                                    $rowClass = 'inadimplente-ate3';
+                                    $rowStyle = 'background-color: #fff9c4 !important;';
+                                } elseif ($status == 'INADIMPLENTE - 3 a 6 meses') {
+                                    $rowClass = 'inadimplente-3a6';
+                                    $rowStyle = 'background-color: #ffe0b2 !important;';
+                                } elseif ($status == 'INADIMPLENTE - 6 a 9 meses') {
+                                    $rowClass = 'inadimplente-6a9';
+                                    $rowStyle = 'background-color: #ffcc80 !important;';
+                                } elseif ($status == 'INADIMPLENTE - 9 a 12 meses') {
+                                    $rowClass = 'inadimplente-9a12';
+                                    $rowStyle = 'background-color: #ffcdd2 !important;';
+                                } elseif ($status == 'INADIMPLENTE - Mais de 12 meses') {
+                                    $rowClass = 'inadimplente-12mais';
+                                    $rowStyle = 'background-color: #ef5350 !important; color: white !important;';
+                                }
+                                // CATEGORIAS ANTIGAS (compatibilidade)
+                                elseif ($status == 'INADIMPLENTE - Menos de 50%') {
                                     $rowClass = 'inadimplente-menos50';
                                     $rowStyle = 'background-color: #fff9c4 !important;';
-                                } elseif (strpos($titulo['status_inadimplencia'], 'INADIMPLENTE') !== false) {
+                                } elseif ($status == 'INADIMPLENTE - Mais de 50%') {
                                     $rowClass = 'inadimplente-mais50';
                                     $rowStyle = 'background-color: #ffcdd2 !important;';
-                                } elseif ($titulo['status_inadimplencia'] == 'ADIMPLENTE') {
+                                }
+                                // INADIMPLENTE GENÉRICO
+                                elseif (strpos($status, 'INADIMPLENTE') !== false) {
+                                    $rowClass = 'inadimplente-mais50';
+                                    $rowStyle = 'background-color: #ffcdd2 !important;';
+                                }
+                                // ADIMPLENTE
+                                elseif ($status == 'ADIMPLENTE') {
                                     $rowClass = 'adimplente';
                                     $rowStyle = 'background-color: #e8f5e9 !important;';
                                 }
