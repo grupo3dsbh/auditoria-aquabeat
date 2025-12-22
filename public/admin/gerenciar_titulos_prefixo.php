@@ -65,6 +65,17 @@ include APP_ROOT . '/includes/header.php';
         </div>
     </div>
 
+    <!-- Alerta: Migration necessária -->
+    <div class="alert alert-info">
+        <h6><i class="bi bi-info-circle"></i> Nova Funcionalidade: Controle de Exibição</h6>
+        <p>Agora você pode MANTER todos os títulos no banco (incluindo DIP, SAC, SAP) mas controlar quais aparecem nos relatórios.</p>
+        <p class="mb-0">
+            <a href="executar_migration_usado_relatorios.php" class="btn btn-sm btn-info">
+                <i class="bi bi-database-add"></i> Configurar Controle de Exibição
+            </a>
+        </p>
+    </div>
+
     <!-- Resumo Geral -->
     <div class="row mb-4">
         <div class="col-md-4">

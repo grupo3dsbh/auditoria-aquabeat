@@ -18,8 +18,19 @@ try {
     $conditions = ["1=1"];
     $params = [];
 
-    // IMPORTANTE: SEMPRE filtrar apenas SFA e SBF
-    $conditions[] = "(numero_titulo LIKE 'SFA%' OR numero_titulo LIKE 'SBF%')";
+    // IMPORTANTE: Filtrar apenas títulos marcados para uso em relatórios
+    try {
+        $colunaExiste = $db->fetchColumn("SHOW COLUMNS FROM titulos LIKE 'usado_relatorios'");
+        if ($colunaExiste) {
+            $conditions[] = "usado_relatorios = TRUE";
+        } else {
+            // Fallback: usar filtro SFA/SBF se coluna não existir
+            $conditions[] = "(numero_titulo LIKE 'SFA%' OR numero_titulo LIKE 'SBF%')";
+        }
+    } catch (Exception $e) {
+        // Em caso de erro, usar filtro SFA/SBF
+        $conditions[] = "(numero_titulo LIKE 'SFA%' OR numero_titulo LIKE 'SBF%')";
+    }
 
     if ($importacaoId) {
         $conditions[] = "importacao_id = ?";
@@ -50,12 +61,15 @@ try {
             COUNT(CASE WHEN status_inadimplencia LIKE 'INADIMPLENTE%' THEN 1 END) as total_inadimplentes,
             COUNT(CASE WHEN status_inadimplencia = 'ADIMPLENTE' THEN 1 END) as total_adimplentes,
 
-            -- Categorias especiais
-            COUNT(CASE WHEN status_inadimplencia = 'INADIMPLENTE - Apenas 1ª Parcela' THEN 1 END) as apenas_1parcela,
-            COUNT(CASE WHEN status_inadimplencia = 'INADIMPLENTE - Apenas 2 Parcelas' THEN 1 END) as apenas_2parcelas,
+            -- Categoria "REQUER ANÁLISE"
+            COUNT(CASE WHEN status_inadimplencia LIKE 'INADIMPLENTE - Requer análise%' THEN 1 END) as requer_analise,
+
+            -- Categorias especiais (compatibilidade)
+            COUNT(CASE WHEN status_inadimplencia = 'INADIMPLENTE - Apenas 1ª Parcela' OR status_inadimplencia = 'INADIMPLENTE - Requer análise (1ª parcela)' THEN 1 END) as apenas_1parcela,
+            COUNT(CASE WHEN status_inadimplencia = 'INADIMPLENTE - Apenas 2 Parcelas' OR status_inadimplencia = 'INADIMPLENTE - Requer análise (2 parcelas)' THEN 1 END) as apenas_2parcelas,
 
             -- NOVAS categorias por tempo
-            COUNT(CASE WHEN status_inadimplencia = 'INADIMPLENTE - Até 3 meses' THEN 1 END) as ate_3meses,
+            COUNT(CASE WHEN status_inadimplencia = 'INADIMPLENTE - Até 3 meses' OR status_inadimplencia = 'INADIMPLENTE - Requer análise (até 3 meses)' THEN 1 END) as ate_3meses,
             COUNT(CASE WHEN status_inadimplencia = 'INADIMPLENTE - 3 a 6 meses' THEN 1 END) as de_3a6meses,
             COUNT(CASE WHEN status_inadimplencia = 'INADIMPLENTE - 6 a 9 meses' THEN 1 END) as de_6a9meses,
             COUNT(CASE WHEN status_inadimplencia = 'INADIMPLENTE - 9 a 12 meses' THEN 1 END) as de_9a12meses,
@@ -133,8 +147,21 @@ function gerarResumoInteligente($stats, $taxa, $topConsultores, $problematicos) 
     // Análise por ETAPA DE ABANDONO (nova classificação)
     $resumo .= "**🎯 ANÁLISE POR ETAPA DE ABANDONO:**\n\n";
 
-    // Até 3 meses - Premiação
-    if ($stats['ate_3meses'] > 0) {
+    // REQUER ANÁLISE (1ª, 2ª parcela ou até 3 meses)
+    if (isset($stats['requer_analise']) && $stats['requer_analise'] > 0) {
+        $perc = round(($stats['requer_analise'] / $stats['total_titulos']) * 100, 2);
+        $resumo .= sprintf("⚠️ **REQUER ANÁLISE** - %s clientes (%.2f%%)\n", number_format($stats['requer_analise'], 0, ',', '.'), $perc);
+        $resumo .= "   📌 Categoria: 1ª parcela, 2 parcelas ou até 3 meses inadimplente\n";
+        $resumo .= "   📌 Motivo provável: Pagou apenas para garantir premiação inicial\n";
+        $resumo .= "   💡 Estratégia de reativação:\n";
+        $resumo .= "      • **PESQUISA NPS OBRIGATÓRIA**: entender o motivo real\n";
+        $resumo .= "      • Contato imediato via WhatsApp/telefone\n";
+        $resumo .= "      • Oferecer benefício exclusivo para retorno (desconto, bônus)\n";
+        $resumo .= "      • Taxa de recuperação esperada: 40-60%\n\n";
+    }
+
+    // Até 3 meses - Premiação (compatibilidade)
+    if (isset($stats['ate_3meses']) && $stats['ate_3meses'] > 0 && (!isset($stats['requer_analise']) || $stats['requer_analise'] == 0)) {
         $perc = round(($stats['ate_3meses'] / $stats['total_titulos']) * 100, 2);
         $resumo .= sprintf("🟡 **ATÉ 3 MESES** - %s clientes (%.2f%%)\n", number_format($stats['ate_3meses'], 0, ',', '.'), $perc);
         $resumo .= "   📌 Motivo provável: Pagou apenas para garantir premiação inicial\n";

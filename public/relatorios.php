@@ -39,10 +39,23 @@ $where[] = "data_primeira_venda <= ?";
 $params[] = $dataFim . ' 23:59:59';
 $filtros['data_fim'] = $dataFim;
 
-// IMPORTANTE: Considerar APENAS SFA e SBF (outros prefixos são ignorados)
-// Este filtro é SEMPRE aplicado e não pode ser removido
-$where[] = "(numero_titulo LIKE 'SFA%' OR numero_titulo LIKE 'SBF%')";
-$filtros['prefixos'] = ['SFA', 'SBF'];
+// IMPORTANTE: Filtrar apenas títulos marcados para uso em relatórios
+// Verifica se a coluna usado_relatorios existe, senão usa filtro SFA/SBF
+try {
+    $colunaExiste = $db->fetchColumn("SHOW COLUMNS FROM titulos LIKE 'usado_relatorios'");
+    if ($colunaExiste) {
+        $where[] = "usado_relatorios = TRUE";
+        $filtros['usado_relatorios'] = true;
+    } else {
+        // Fallback: usar filtro SFA/SBF se coluna não existir
+        $where[] = "(numero_titulo LIKE 'SFA%' OR numero_titulo LIKE 'SBF%')";
+        $filtros['prefixos'] = ['SFA', 'SBF'];
+    }
+} catch (Exception $e) {
+    // Em caso de erro, usar filtro SFA/SBF
+    $where[] = "(numero_titulo LIKE 'SFA%' OR numero_titulo LIKE 'SBF%')";
+    $filtros['prefixos'] = ['SFA', 'SBF'];
+}
 
 // Filtro por status do título (permite múltiplos)
 if (!empty($_GET['status_titulo'])) {
@@ -421,27 +434,35 @@ endif;
 
         /* Cores por tipo de inadimplência - Força máxima de especificidade */
 
-        /* CATEGORIAS ESPECIAIS - CORES VIVAS */
+        /* CATEGORIAS "REQUER ANÁLISE" - Amarelo/Laranja para análise */
+        table.table tbody tr.inadimplente-requer-analise,
+        table.table tbody tr.inadimplente-requer-analise > td {
+            background-color: #ffc107 !important; /* Amarelo/Laranja - Requer Análise */
+            color: #000 !important;
+            font-weight: 600;
+        }
+
+        /* CATEGORIAS ANTIGAS (compatibilidade) - CORES VIVAS */
         table.table tbody tr.inadimplente-1parcela,
         table.table tbody tr.inadimplente-1parcela > td {
-            background-color: #ff6b9d !important; /* Rosa vivo */
-            color: white !important;
-            font-weight: 500;
+            background-color: #ffc107 !important; /* Amarelo/Laranja - Requer Análise */
+            color: #000 !important;
+            font-weight: 600;
         }
         table.table tbody tr.inadimplente-2parcelas,
         table.table tbody tr.inadimplente-2parcelas > td {
-            background-color: #ff9800 !important; /* Laranja vivo */
-            color: white !important;
-            font-weight: 500;
+            background-color: #ffc107 !important; /* Amarelo/Laranja - Requer Análise */
+            color: #000 !important;
+            font-weight: 600;
         }
 
         /* NOVAS CATEGORIAS POR TEMPO - CORES MAIS VIVAS */
-        /* Até 3 meses - Amarelo forte (premiação) */
+        /* Até 3 meses - Amarelo forte (requer análise) */
         table.table tbody tr.inadimplente-ate3,
         table.table tbody tr.inadimplente-ate3 > td {
-            background-color: #ffeb3b !important;
+            background-color: #ffc107 !important;
             color: #000 !important;
-            font-weight: 500;
+            font-weight: 600;
         }
         /* 3 a 6 meses - Laranja vivo (experiência) */
         table.table tbody tr.inadimplente-3a6,
@@ -957,25 +978,11 @@ endif;
                 </p>
 
                 <div class="row g-2">
-                    <!-- Categorias Especiais -->
-                    <div class="col-md-3">
-                        <div class="p-2 border rounded text-center" style="background-color: #ff6b9d; color: white;">
-                            <small><strong>Apenas 1ª Parcela</strong><br>
-                            <span style="opacity: 0.9;">Pode ser premiação</span></small>
-                        </div>
-                    </div>
-                    <div class="col-md-3">
-                        <div class="p-2 border rounded text-center" style="background-color: #ff9800; color: white;">
-                            <small><strong>Apenas 2 Parcelas</strong><br>
-                            <span style="opacity: 0.9;">Premiação</span></small>
-                        </div>
-                    </div>
-
-                    <!-- Novas Categorias por Tempo -->
-                    <div class="col-md-3">
-                        <div class="p-2 border rounded text-center" style="background-color: #ffeb3b; color: #000;">
-                            <small><strong>Até 3 meses</strong><br>
-                            <span class="text-muted">Premiação inicial</span></small>
+                    <!-- Categoria "REQUER ANÁLISE" -->
+                    <div class="col-md-4">
+                        <div class="p-2 border rounded text-center" style="background-color: #ffc107; color: #000; font-weight: 600;">
+                            <small><strong>REQUER ANÁLISE</strong><br>
+                            <span class="text-muted">1ª, 2ª parcela ou até 3 meses</span></small>
                         </div>
                     </div>
                     <div class="col-md-3">
@@ -1020,28 +1027,28 @@ endif;
                 <h5><i class="bi bi-table"></i> Resultados (<?php echo number_format($total, 0, ',', '.'); ?> registros)</h5>
                 <div class="btn-group btn-group-sm">
                     <button class="btn btn-outline-secondary <?php echo $orderBy == 'nome_titular' ? 'active' : ''; ?>" onclick="ordenar('nome_titular', '<?php echo ($orderBy == 'nome_titular' && $orderDir == 'ASC') ? 'DESC' : 'ASC'; ?>')">
-                        <i class="bi bi-sort-alpha-<?php echo ($orderBy == 'nome_titular' && $orderDir == 'ASC') ? 'up' : 'down'; ?>"></i> Nome
-                        <?php if ($orderBy == 'nome_titular'): ?><small>(<?php echo $orderDir; ?>)</small><?php endif; ?>
+                        <i class="bi bi-sort-alpha-down"></i> Nome
+                        <?php if ($orderBy == 'nome_titular'): ?><i class="bi bi-arrow-<?php echo $orderDir == 'ASC' ? 'up' : 'down'; ?>"></i><?php endif; ?>
                     </button>
                     <button class="btn btn-outline-secondary <?php echo $orderBy == 'promotor' ? 'active' : ''; ?>" onclick="ordenar('promotor', '<?php echo ($orderBy == 'promotor' && $orderDir == 'ASC') ? 'DESC' : 'ASC'; ?>')">
                         <i class="bi bi-person"></i> Promotor
-                        <?php if ($orderBy == 'promotor'): ?><small>(<?php echo $orderDir; ?>)</small><?php endif; ?>
+                        <?php if ($orderBy == 'promotor'): ?><i class="bi bi-arrow-<?php echo $orderDir == 'ASC' ? 'up' : 'down'; ?>"></i><?php endif; ?>
                     </button>
                     <button class="btn btn-outline-secondary <?php echo $orderBy == 'status_titulo' ? 'active' : ''; ?>" onclick="ordenar('status_titulo', '<?php echo ($orderBy == 'status_titulo' && $orderDir == 'ASC') ? 'DESC' : 'ASC'; ?>')">
                         <i class="bi bi-flag"></i> Status
-                        <?php if ($orderBy == 'status_titulo'): ?><small>(<?php echo $orderDir; ?>)</small><?php endif; ?>
+                        <?php if ($orderBy == 'status_titulo'): ?><i class="bi bi-arrow-<?php echo $orderDir == 'ASC' ? 'up' : 'down'; ?>"></i><?php endif; ?>
                     </button>
                     <button class="btn btn-outline-secondary <?php echo $orderBy == 'status_inadimplencia' ? 'active' : ''; ?>" onclick="ordenar('status_inadimplencia', '<?php echo ($orderBy == 'status_inadimplencia' && $orderDir == 'ASC') ? 'DESC' : 'ASC'; ?>')">
-                        <i class="bi bi-palette"></i> Inadimplência (Cor)
-                        <?php if ($orderBy == 'status_inadimplencia'): ?><small>(<?php echo $orderDir; ?>)</small><?php endif; ?>
+                        <i class="bi bi-palette"></i> Inadimplência
+                        <?php if ($orderBy == 'status_inadimplencia'): ?><i class="bi bi-arrow-<?php echo $orderDir == 'ASC' ? 'up' : 'down'; ?>"></i><?php endif; ?>
                     </button>
                     <button class="btn btn-outline-secondary <?php echo $orderBy == 'qtd_parcelas_pagas' ? 'active' : ''; ?>" onclick="ordenar('qtd_parcelas_pagas', '<?php echo ($orderBy == 'qtd_parcelas_pagas' && $orderDir == 'ASC') ? 'DESC' : 'ASC'; ?>')">
                         <i class="bi bi-cash-stack"></i> Parcelas
-                        <?php if ($orderBy == 'qtd_parcelas_pagas'): ?><small>(<?php echo $orderDir; ?>)</small><?php endif; ?>
+                        <?php if ($orderBy == 'qtd_parcelas_pagas'): ?><i class="bi bi-arrow-<?php echo $orderDir == 'ASC' ? 'up' : 'down'; ?>"></i><?php endif; ?>
                     </button>
                     <button class="btn btn-outline-secondary <?php echo $orderBy == 'data_primeira_venda' ? 'active' : ''; ?>" onclick="ordenar('data_primeira_venda', '<?php echo ($orderBy == 'data_primeira_venda' && $orderDir == 'DESC') ? 'ASC' : 'DESC'; ?>')">
                         <i class="bi bi-calendar"></i> Data
-                        <?php if ($orderBy == 'data_primeira_venda'): ?><small>(<?php echo $orderDir; ?>)</small><?php endif; ?>
+                        <?php if ($orderBy == 'data_primeira_venda'): ?><i class="bi bi-arrow-<?php echo $orderDir == 'ASC' ? 'up' : 'down'; ?>"></i><?php endif; ?>
                     </button>
                 </div>
             </div>
@@ -1068,19 +1075,19 @@ endif;
                                 $rowStyle = '';
                                 $status = $titulo['status_inadimplencia'];
 
-                                // CATEGORIAS ESPECIAIS
-                                if ($status == 'INADIMPLENTE - Apenas 1ª Parcela') {
-                                    $rowClass = 'inadimplente-1parcela';
-                                    $rowStyle = 'background-color: #ff6b9d !important; color: white !important; font-weight: 500;';
-                                } elseif ($status == 'INADIMPLENTE - Apenas 2 Parcelas') {
-                                    $rowClass = 'inadimplente-2parcelas';
-                                    $rowStyle = 'background-color: #ff9800 !important; color: white !important; font-weight: 500;';
+                                // CATEGORIAS "REQUER ANÁLISE"
+                                if ($status == 'INADIMPLENTE - Requer análise (1ª parcela)' || $status == 'INADIMPLENTE - Apenas 1ª Parcela') {
+                                    $rowClass = 'inadimplente-requer-analise';
+                                    $rowStyle = 'background-color: #ffc107 !important; color: #000 !important; font-weight: 600;';
+                                } elseif ($status == 'INADIMPLENTE - Requer análise (2 parcelas)' || $status == 'INADIMPLENTE - Apenas 2 Parcelas') {
+                                    $rowClass = 'inadimplente-requer-analise';
+                                    $rowStyle = 'background-color: #ffc107 !important; color: #000 !important; font-weight: 600;';
+                                } elseif ($status == 'INADIMPLENTE - Requer análise (até 3 meses)' || $status == 'INADIMPLENTE - Até 3 meses') {
+                                    $rowClass = 'inadimplente-requer-analise';
+                                    $rowStyle = 'background-color: #ffc107 !important; color: #000 !important; font-weight: 600;';
                                 }
                                 // NOVAS CATEGORIAS POR TEMPO
-                                elseif ($status == 'INADIMPLENTE - Até 3 meses') {
-                                    $rowClass = 'inadimplente-ate3';
-                                    $rowStyle = 'background-color: #ffeb3b !important; color: #000 !important; font-weight: 500;';
-                                } elseif ($status == 'INADIMPLENTE - 3 a 6 meses') {
+                                elseif ($status == 'INADIMPLENTE - 3 a 6 meses') {
                                     $rowClass = 'inadimplente-3a6';
                                     $rowStyle = 'background-color: #ff9800 !important; color: white !important; font-weight: 500;';
                                 } elseif ($status == 'INADIMPLENTE - 6 a 9 meses') {

@@ -37,14 +37,14 @@ class InadimplenciaHelper {
                 return 'ADIMPLENTE';
             }
 
-            // Se pagou apenas 1 parcela
+            // Se pagou apenas 1 parcela (requer análise - pode ser premiação)
             if ($parcelasPagas == 1) {
-                return 'INADIMPLENTE - Apenas 1ª Parcela';
+                return 'INADIMPLENTE - Requer análise (1ª parcela)';
             }
 
-            // Se pagou apenas 2 parcelas
+            // Se pagou apenas 2 parcelas (requer análise - pode ser premiação)
             if ($parcelasPagas == 2) {
-                return 'INADIMPLENTE - Apenas 2 Parcelas';
+                return 'INADIMPLENTE - Requer análise (2 parcelas)';
             }
 
             // Para outros casos, apenas marca como inadimplente genérico
@@ -76,22 +76,22 @@ class InadimplenciaHelper {
         // Calcular meses em atraso
         $mesesEmAtraso = $parcelasEsperadas - $parcelasPagas;
 
-        // Caso especial: Apenas 1ª parcela paga (pode ser por premiação)
+        // Caso especial: Apenas 1ª parcela paga (requer análise - pode ser premiação)
         if ($parcelasPagas == 1 && $mesesDesdeVenda > 1) {
-            return 'INADIMPLENTE - Apenas 1ª Parcela';
+            return 'INADIMPLENTE - Requer análise (1ª parcela)';
         }
 
-        // Caso especial: Apenas 2 parcelas pagas
+        // Caso especial: Apenas 2 parcelas pagas (requer análise - pode ser premiação)
         if ($parcelasPagas == 2 && $mesesDesdeVenda > 2) {
-            return 'INADIMPLENTE - Apenas 2 Parcelas';
+            return 'INADIMPLENTE - Requer análise (2 parcelas)';
         }
 
         // Classificação baseada no TEMPO DESDE A VENDA (não em atraso)
         // Isso ajuda a identificar em qual etapa o cliente parou de pagar
 
         if ($mesesDesdeVenda <= 3) {
-            // Até 3 meses: ainda pode ser por causa da premiação
-            return 'INADIMPLENTE - Até 3 meses';
+            // Até 3 meses: requer análise - ainda pode ser por causa da premiação
+            return 'INADIMPLENTE - Requer análise (até 3 meses)';
         } elseif ($mesesDesdeVenda <= 6) {
             // 3-6 meses: cliente pode não ter tido boa experiência
             return 'INADIMPLENTE - 3 a 6 meses';
@@ -308,12 +308,17 @@ class InadimplenciaHelper {
             'ADIMPLENTE' => 'success',
             'PARCIALMENTE ADIMPLENTE' => 'info',
 
-            // Categorias especiais
-            'INADIMPLENTE - Apenas 1ª Parcela' => 'danger',
-            'INADIMPLENTE - Apenas 2 Parcelas' => 'danger',
+            // Categorias especiais - REQUER ANÁLISE
+            'INADIMPLENTE - Requer análise (1ª parcela)' => 'warning',
+            'INADIMPLENTE - Requer análise (2 parcelas)' => 'warning',
+            'INADIMPLENTE - Requer análise (até 3 meses)' => 'warning',
+
+            // Categorias antigas (compatibilidade)
+            'INADIMPLENTE - Apenas 1ª Parcela' => 'warning',
+            'INADIMPLENTE - Apenas 2 Parcelas' => 'warning',
+            'INADIMPLENTE - Até 3 meses' => 'warning',
 
             // Novas categorias por tempo (do menos grave ao mais grave)
-            'INADIMPLENTE - Até 3 meses' => 'warning',      // Amarelo - pode ser premiação
             'INADIMPLENTE - 3 a 6 meses' => 'warning',      // Amarelo - experiência
             'INADIMPLENTE - 6 a 9 meses' => 'danger',       // Vermelho - expectativa não atendida
             'INADIMPLENTE - 9 a 12 meses' => 'danger',      // Vermelho - problema sério
