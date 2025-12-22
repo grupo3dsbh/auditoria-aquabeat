@@ -82,6 +82,16 @@ if (!empty($_GET['status_inadimplencia'])) {
     $filtros['status_inadimplencia'] = $_GET['status_inadimplencia'];
 }
 
+// Filtro de pesquisa geral (nome, CPF ou número do título)
+if (!empty($_GET['pesquisa_geral'])) {
+    $pesquisaGeral = $_GET['pesquisa_geral'];
+    $where[] = "(nome_titular LIKE ? OR documento_titular LIKE ? OR numero_titulo LIKE ?)";
+    $params[] = '%' . $pesquisaGeral . '%';
+    $params[] = '%' . $pesquisaGeral . '%';
+    $params[] = '%' . $pesquisaGeral . '%';
+    $filtros['pesquisa_geral'] = $pesquisaGeral;
+}
+
 if (!empty($_GET['promotor'])) {
     $where[] = "promotor = ?";
     $params[] = $_GET['promotor'];
@@ -117,7 +127,16 @@ if (isset($_GET['parcelas_filtro']) && !empty($_GET['parcelas_filtro'])) {
             $condicoesParc[] = "qtd_parcelas_pagas = 1";
         } elseif ($filtro === '2') {
             $condicoesParc[] = "qtd_parcelas_pagas = 2";
+        } elseif ($filtro === '3') {
+            $condicoesParc[] = "qtd_parcelas_pagas = 3";
+        } elseif ($filtro === '4-6') {
+            $condicoesParc[] = "(qtd_parcelas_pagas >= 4 AND qtd_parcelas_pagas <= 6)";
+        } elseif ($filtro === '7-11') {
+            $condicoesParc[] = "(qtd_parcelas_pagas >= 7 AND qtd_parcelas_pagas <= 11)";
+        } elseif ($filtro === '12+') {
+            $condicoesParc[] = "qtd_parcelas_pagas >= 12";
         } elseif ($filtro === '3+') {
+            // Manter compatibilidade com filtro antigo
             $condicoesParc[] = "qtd_parcelas_pagas >= 3";
         }
     }
@@ -1613,6 +1632,15 @@ endif;
             </div>
             <div class="card-body">
                 <form method="GET" class="row g-3" id="filterForm">
+                    <!-- Campo de Pesquisa Geral -->
+                    <div class="col-md-12">
+                        <label class="form-label"><i class="bi bi-search"></i> Pesquisar</label>
+                        <input type="text" name="pesquisa_geral" class="form-control"
+                               placeholder="Buscar por nome do titular, CPF, número do título..."
+                               value="<?php echo sanitize($filtros['pesquisa_geral'] ?? ''); ?>">
+                        <small class="text-muted">Busque por nome, CPF ou número do título</small>
+                    </div>
+
                     <div class="col-md-3">
                         <label class="form-label">Data Início</label>
                         <input type="date" name="data_inicio" class="form-control" value="<?php echo sanitize($filtros['data_inicio']); ?>">
@@ -1642,6 +1670,8 @@ endif;
                             <option value="1 Vaga" <?php echo ($filtros['tipo_titulo'] ?? '') == '1 Vaga' ? 'selected' : ''; ?>>1 Vaga</option>
                             <option value="2 Vagas" <?php echo ($filtros['tipo_titulo'] ?? '') == '2 Vagas' ? 'selected' : ''; ?>>2 Vagas</option>
                             <option value="3 Vagas" <?php echo ($filtros['tipo_titulo'] ?? '') == '3 Vagas' ? 'selected' : ''; ?>>3 Vagas</option>
+                            <option value="4 Vagas" <?php echo ($filtros['tipo_titulo'] ?? '') == '4 Vagas' ? 'selected' : ''; ?>>4 Vagas</option>
+                            <option value="5 Vagas" <?php echo ($filtros['tipo_titulo'] ?? '') == '5 Vagas' ? 'selected' : ''; ?>>5 Vagas</option>
                         </select>
                     </div>
 
@@ -1684,7 +1714,7 @@ endif;
 
                     <div class="col-md-3">
                         <label class="form-label">Parcelas Pagas</label>
-                        <select name="parcelas_filtro[]" class="form-select" multiple size="4">
+                        <select name="parcelas_filtro[]" class="form-select" multiple size="6">
                             <?php
                             $parcelasSelecionadas = $filtros['parcelas_filtro'] ?? [];
                             if (!is_array($parcelasSelecionadas)) {
@@ -1692,9 +1722,12 @@ endif;
                             }
                             ?>
                             <option value="0" <?php echo in_array('0', $parcelasSelecionadas) ? 'selected' : ''; ?>>Nenhuma (0)</option>
-                            <option value="1" <?php echo in_array('1', $parcelasSelecionadas) ? 'selected' : ''; ?>>Apenas 1ª</option>
+                            <option value="1" <?php echo in_array('1', $parcelasSelecionadas) ? 'selected' : ''; ?>>Apenas 1</option>
                             <option value="2" <?php echo in_array('2', $parcelasSelecionadas) ? 'selected' : ''; ?>>Apenas 2</option>
-                            <option value="3+" <?php echo in_array('3+', $parcelasSelecionadas) ? 'selected' : ''; ?>>3 ou mais</option>
+                            <option value="3" <?php echo in_array('3', $parcelasSelecionadas) ? 'selected' : ''; ?>>Apenas 3</option>
+                            <option value="4-6" <?php echo in_array('4-6', $parcelasSelecionadas) ? 'selected' : ''; ?>>De 4 a 6</option>
+                            <option value="7-11" <?php echo in_array('7-11', $parcelasSelecionadas) ? 'selected' : ''; ?>>De 7 a 11</option>
+                            <option value="12+" <?php echo in_array('12+', $parcelasSelecionadas) ? 'selected' : ''; ?>>12 ou mais</option>
                         </select>
                         <small class="text-muted">Ctrl+clique para múltiplos</small>
                     </div>
@@ -1816,6 +1849,7 @@ endif;
                                 <th>Status</th>
                                 <th>Inadimplência</th>
                                 <th>Parcelas</th>
+                                <th>Vlr. Parcela</th>
                                 <th>Total Pago</th>
                                 <th>Saldo</th>
                                 <th>Data Venda</th>
@@ -1896,6 +1930,7 @@ endif;
                                     </td>
                                     <td><small><?php echo $titulo['status_inadimplencia']; ?></small></td>
                                     <td><?php echo $titulo['qtd_parcelas_pagas']; ?>/<?php echo $titulo['quantidade_parcelas_venda']; ?></td>
+                                    <td><small><?php echo formatCurrency($titulo['valor_parcela'] ?? 0); ?></small></td>
                                     <td><small><?php echo formatCurrency($titulo['total_pago'] ?? 0); ?></small></td>
                                     <td><small><?php echo formatCurrency($titulo['saldo_restante'] ?? 0); ?></small></td>
                                     <td><small><?php echo formatDate($titulo['data_primeira_venda']); ?></small></td>
