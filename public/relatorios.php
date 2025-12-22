@@ -954,6 +954,54 @@ if ($viewCartoes):
                 </div>
             </div>
 
+            <!-- Card de Resumo (quando houver pesquisa) -->
+            <?php if ($pesquisa && !empty($cartoesMultiplos)): ?>
+            <div class="row mb-4">
+                <div class="col-md-12">
+                    <div class="card border-primary">
+                        <div class="card-header bg-primary text-white">
+                            <h5 class="mb-0"><i class="bi bi-search"></i> Resumo da Pesquisa: "<?php echo sanitize($pesquisa); ?>"</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="row text-center">
+                                <div class="col-md-2">
+                                    <h4 class="text-primary"><?php echo number_format($statsGerais['total_cartoes'], 0, ',', '.'); ?></h4>
+                                    <p class="text-muted mb-0">Cartões</p>
+                                </div>
+                                <div class="col-md-2">
+                                    <h4 class="text-info"><?php echo number_format($statsGerais['total_titulos'], 0, ',', '.'); ?></h4>
+                                    <p class="text-muted mb-0">Títulos</p>
+                                </div>
+                                <div class="col-md-2">
+                                    <h4 class="text-success"><?php echo number_format($statsGerais['total_adimplentes'], 0, ',', '.'); ?></h4>
+                                    <p class="text-muted mb-0">Adimplentes</p>
+                                </div>
+                                <div class="col-md-2">
+                                    <h4 class="text-danger"><?php echo number_format($statsGerais['total_inadimplentes'], 0, ',', '.'); ?></h4>
+                                    <p class="text-muted mb-0">Inadimplentes</p>
+                                </div>
+                                <div class="col-md-2">
+                                    <h4>
+                                        <?php
+                                        $taxaPesquisa = $statsGerais['total_titulos'] > 0 ?
+                                            round(($statsGerais['total_inadimplentes'] / $statsGerais['total_titulos']) * 100, 1) : 0;
+                                        $corTaxa = $taxaPesquisa >= 50 ? 'text-danger' : ($taxaPesquisa >= 30 ? 'text-warning' : 'text-success');
+                                        ?>
+                                        <span class="<?php echo $corTaxa; ?>"><?php echo number_format($taxaPesquisa, 1, ',', '.'); ?>%</span>
+                                    </h4>
+                                    <p class="text-muted mb-0">Taxa Inadimp.</p>
+                                </div>
+                                <div class="col-md-2">
+                                    <h4 class="text-warning"><?php echo number_format($statsGerais['total_bloqueados'], 0, ',', '.'); ?></h4>
+                                    <p class="text-muted mb-0">Bloqueados</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <?php endif; ?>
+
             <!-- Tabela de Cartões -->
             <div class="row">
                 <div class="col-md-12">
@@ -965,13 +1013,33 @@ if ($viewCartoes):
                                         <tr>
                                             <th>Cartão</th>
                                             <th>Bandeiras/Tipos</th>
-                                            <th class="text-end">Títulos</th>
-                                            <th class="text-end">CPFs</th>
-                                            <th class="text-end">Consultores</th>
+                                            <th class="text-end">
+                                                <a href="?view=cartoes&ordenar=titulos<?php echo $pesquisa ? '&pesquisa='.urlencode($pesquisa) : ''; ?>" class="text-decoration-none text-dark">
+                                                    Títulos <?php echo $ordenarPor === 'titulos' ? '<i class="bi bi-caret-down-fill"></i>' : '<i class="bi bi-caret-down text-muted"></i>'; ?>
+                                                </a>
+                                            </th>
+                                            <th class="text-end">
+                                                <a href="?view=cartoes&ordenar=cpfs<?php echo $pesquisa ? '&pesquisa='.urlencode($pesquisa) : ''; ?>" class="text-decoration-none text-dark">
+                                                    CPFs <?php echo $ordenarPor === 'cpfs' ? '<i class="bi bi-caret-down-fill"></i>' : '<i class="bi bi-caret-down text-muted"></i>'; ?>
+                                                </a>
+                                            </th>
+                                            <th class="text-end">
+                                                <a href="?view=cartoes&ordenar=consultores<?php echo $pesquisa ? '&pesquisa='.urlencode($pesquisa) : ''; ?>" class="text-decoration-none text-dark">
+                                                    Consultores <?php echo $ordenarPor === 'consultores' ? '<i class="bi bi-caret-down-fill"></i>' : '<i class="bi bi-caret-down text-muted"></i>'; ?>
+                                                </a>
+                                            </th>
                                             <th class="text-end">Adim.</th>
-                                            <th class="text-end">Inadimp.</th>
+                                            <th class="text-end">
+                                                <a href="?view=cartoes&ordenar=inadimplentes<?php echo $pesquisa ? '&pesquisa='.urlencode($pesquisa) : ''; ?>" class="text-decoration-none text-dark">
+                                                    Inadimp. <?php echo $ordenarPor === 'inadimplentes' ? '<i class="bi bi-caret-down-fill"></i>' : '<i class="bi bi-caret-down text-muted"></i>'; ?>
+                                                </a>
+                                            </th>
                                             <th class="text-end">Ativos</th>
-                                            <th class="text-end">Bloq.</th>
+                                            <th class="text-end">
+                                                <a href="?view=cartoes&ordenar=bloqueados<?php echo $pesquisa ? '&pesquisa='.urlencode($pesquisa) : ''; ?>" class="text-decoration-none text-dark">
+                                                    Bloq. <?php echo $ordenarPor === 'bloqueados' ? '<i class="bi bi-caret-down-fill"></i>' : '<i class="bi bi-caret-down text-muted"></i>'; ?>
+                                                </a>
+                                            </th>
                                             <th class="text-end">Canc.</th>
                                             <th>Consultores</th>
                                             <th class="text-center">Ação</th>
