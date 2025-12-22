@@ -48,11 +48,11 @@ $stats = [
 
 foreach ($titulosConsultor as $titulo) {
     // Contar formas de pagamento
-    if (stripos($titulo['bandeira_cartao'], 'DEBITO') !== false || stripos($titulo['bandeira_cartao'], 'DEBIT') !== false) {
+    if (stripos($titulo['bandeira'], 'DEBITO') !== false || stripos($titulo['bandeira'], 'DEBIT') !== false) {
         $stats['debito']++;
-    } elseif (stripos($titulo['bandeira_cartao'], 'PIX') !== false || stripos($titulo['bandeira_cartao'], 'CARTEIRA') !== false) {
+    } elseif (stripos($titulo['bandeira'], 'PIX') !== false || stripos($titulo['bandeira'], 'CARTEIRA') !== false) {
         $stats['pix']++;
-    } elseif (stripos($titulo['bandeira_cartao'], 'CREDITO') !== false || stripos($titulo['bandeira_cartao'], 'CREDIT') !== false) {
+    } elseif (stripos($titulo['bandeira'], 'CREDITO') !== false || stripos($titulo['bandeira'], 'CREDIT') !== false) {
         $stats['credito']++;
     }
 
@@ -74,10 +74,10 @@ foreach ($titulosConsultor as $titulo) {
     }
 
     // Identificar problemas com débito/PIX
-    $isDebitoPix = (stripos($titulo['bandeira_cartao'], 'DEBITO') !== false ||
-                    stripos($titulo['bandeira_cartao'], 'DEBIT') !== false ||
-                    stripos($titulo['bandeira_cartao'], 'PIX') !== false ||
-                    stripos($titulo['bandeira_cartao'], 'CARTEIRA') !== false);
+    $isDebitoPix = (stripos($titulo['bandeira'], 'DEBITO') !== false ||
+                    stripos($titulo['bandeira'], 'DEBIT') !== false ||
+                    stripos($titulo['bandeira'], 'PIX') !== false ||
+                    stripos($titulo['bandeira'], 'CARTEIRA') !== false);
 
     $temProblema = ($titulo['status_titulo'] === 'Bloqueado' ||
                    $titulo['status_titulo'] === 'Cancelado' ||
@@ -405,10 +405,10 @@ O consultor **{$promotor}** apresenta um padrão de risco elevado em suas vendas
                                             <td><?php echo sanitize($problema['numero_titulo']); ?></td>
                                             <td><?php echo sanitize($problema['nome_titular']); ?></td>
                                             <td>
-                                                <?php echo sanitize($problema['bandeira_cartao']); ?>
-                                                <?php if (stripos($problema['bandeira_cartao'], 'DEBITO') !== false): ?>
+                                                <?php echo sanitize($problema['bandeira']); ?>
+                                                <?php if (stripos($problema['bandeira'], 'DEBITO') !== false): ?>
                                                     <span class="badge bg-danger">DÉBITO</span>
-                                                <?php elseif (stripos($problema['bandeira_cartao'], 'PIX') !== false): ?>
+                                                <?php elseif (stripos($problema['bandeira'], 'PIX') !== false): ?>
                                                     <span class="badge bg-info">PIX</span>
                                                 <?php endif; ?>
                                             </td>

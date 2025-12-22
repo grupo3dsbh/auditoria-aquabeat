@@ -44,35 +44,35 @@ if ($ultimaImportacao) {
         'credito_ok' => $db->fetchColumn(
             "SELECT COUNT(*) FROM titulos
              WHERE importacao_id = ? AND data_primeira_venda BETWEEN ? AND ?
-             AND (bandeira_cartao LIKE '%CREDITO%' OR bandeira_cartao LIKE '%CREDIT%')
+             AND (bandeira LIKE '%CREDITO%' OR bandeira LIKE '%CREDIT%')
              AND status_inadimplencia = 'ADIMPLENTE'",
             [$importacaoId, $dataInicio . ' 00:00:00', $dataFim . ' 23:59:59']
         ) ?? 0,
         'credito_1a_parcela' => $db->fetchColumn(
             "SELECT COUNT(*) FROM titulos
              WHERE importacao_id = ? AND data_primeira_venda BETWEEN ? AND ?
-             AND (bandeira_cartao LIKE '%CREDITO%' OR bandeira_cartao LIKE '%CREDIT%')
+             AND (bandeira LIKE '%CREDITO%' OR bandeira LIKE '%CREDIT%')
              AND status_inadimplencia LIKE '%1ª parcela%'",
             [$importacaoId, $dataInicio . ' 00:00:00', $dataFim . ' 23:59:59']
         ) ?? 0,
         'debito_total' => $db->fetchColumn(
             "SELECT COUNT(*) FROM titulos
              WHERE importacao_id = ? AND data_primeira_venda BETWEEN ? AND ?
-             AND (bandeira_cartao LIKE '%DEBITO%' OR bandeira_cartao LIKE '%DEBIT%')",
+             AND (bandeira LIKE '%DEBITO%' OR bandeira LIKE '%DEBIT%')",
             [$importacaoId, $dataInicio . ' 00:00:00', $dataFim . ' 23:59:59']
         ) ?? 0,
         'pix_total' => $db->fetchColumn(
             "SELECT COUNT(*) FROM titulos
              WHERE importacao_id = ? AND data_primeira_venda BETWEEN ? AND ?
-             AND (bandeira_cartao LIKE '%PIX%' OR bandeira_cartao LIKE '%CARTEIRA%')",
+             AND (bandeira LIKE '%PIX%' OR bandeira LIKE '%CARTEIRA%')",
             [$importacaoId, $dataInicio . ' 00:00:00', $dataFim . ' 23:59:59']
         ) ?? 0,
         'outras_formas' => $db->fetchColumn(
             "SELECT COUNT(*) FROM titulos
              WHERE importacao_id = ? AND data_primeira_venda BETWEEN ? AND ?
-             AND bandeira_cartao NOT LIKE '%CREDITO%' AND bandeira_cartao NOT LIKE '%CREDIT%'
-             AND bandeira_cartao NOT LIKE '%DEBITO%' AND bandeira_cartao NOT LIKE '%DEBIT%'
-             AND bandeira_cartao NOT LIKE '%PIX%' AND bandeira_cartao NOT LIKE '%CARTEIRA%'",
+             AND bandeira NOT LIKE '%CREDITO%' AND bandeira NOT LIKE '%CREDIT%'
+             AND bandeira NOT LIKE '%DEBITO%' AND bandeira NOT LIKE '%DEBIT%'
+             AND bandeira NOT LIKE '%PIX%' AND bandeira NOT LIKE '%CARTEIRA%'",
             [$importacaoId, $dataInicio . ' 00:00:00', $dataFim . ' 23:59:59']
         ) ?? 0
     ];
@@ -121,15 +121,15 @@ if ($ultimaImportacao) {
         SELECT
             promotor,
             COUNT(*) as total_vendas,
-            COUNT(CASE WHEN bandeira_cartao LIKE '%DEBITO%' OR bandeira_cartao LIKE '%DEBIT%' THEN 1 END) as vendas_debito,
-            COUNT(CASE WHEN bandeira_cartao LIKE '%PIX%' OR bandeira_cartao LIKE '%CARTEIRA%' THEN 1 END) as vendas_pix,
-            COUNT(CASE WHEN (bandeira_cartao LIKE '%DEBITO%' OR bandeira_cartao LIKE '%DEBIT%'
-                         OR bandeira_cartao LIKE '%PIX%' OR bandeira_cartao LIKE '%CARTEIRA%')
+            COUNT(CASE WHEN bandeira LIKE '%DEBITO%' OR bandeira LIKE '%DEBIT%' THEN 1 END) as vendas_debito,
+            COUNT(CASE WHEN bandeira LIKE '%PIX%' OR bandeira LIKE '%CARTEIRA%' THEN 1 END) as vendas_pix,
+            COUNT(CASE WHEN (bandeira LIKE '%DEBITO%' OR bandeira LIKE '%DEBIT%'
+                         OR bandeira LIKE '%PIX%' OR bandeira LIKE '%CARTEIRA%')
                        AND (status_titulo IN ('Bloqueado', 'Cancelado') OR qtd_parcelas_pagas <= 2) THEN 1 END) as problemas_debito_pix,
             COUNT(CASE WHEN status_titulo IN ('Bloqueado', 'Cancelado') THEN 1 END) as titulos_bloqueados,
             COUNT(CASE WHEN qtd_parcelas_pagas = 1 THEN 1 END) as apenas_1a_parcela,
-            ROUND(COUNT(CASE WHEN (bandeira_cartao LIKE '%DEBITO%' OR bandeira_cartao LIKE '%DEBIT%'
-                               OR bandeira_cartao LIKE '%PIX%' OR bandeira_cartao LIKE '%CARTEIRA%')
+            ROUND(COUNT(CASE WHEN (bandeira LIKE '%DEBITO%' OR bandeira LIKE '%DEBIT%'
+                               OR bandeira LIKE '%PIX%' OR bandeira LIKE '%CARTEIRA%')
                            AND (status_titulo IN ('Bloqueado', 'Cancelado') OR qtd_parcelas_pagas <= 2) THEN 1 END) * 100.0 / COUNT(*), 2) as taxa_risco
         FROM titulos
         WHERE importacao_id = ?
@@ -148,13 +148,13 @@ if ($ultimaImportacao) {
     $topCartoesRisco = $db->fetchAll("
         SELECT
             numero_cartao,
-            bandeira_cartao as bandeira,
+            bandeira,
             COUNT(*) as total_titulos,
-            COUNT(DISTINCT titular_cpf) as total_documentos,
+            COUNT(DISTINCT documento_titular) as total_documentos,
             GROUP_CONCAT(DISTINCT promotor SEPARATOR ', ') as consultores,
             CASE
-                WHEN bandeira_cartao LIKE '%DEBITO%' OR bandeira_cartao LIKE '%DEBIT%' THEN 'DÉBITO'
-                WHEN bandeira_cartao LIKE '%CREDITO%' OR bandeira_cartao LIKE '%CREDIT%' THEN 'CRÉDITO'
+                WHEN bandeira LIKE '%DEBITO%' OR bandeira LIKE '%DEBIT%' THEN 'DÉBITO'
+                WHEN bandeira LIKE '%CREDITO%' OR bandeira LIKE '%CREDIT%' THEN 'CRÉDITO'
                 ELSE 'DESCONHECIDO'
             END as tipo_cartao,
             CASE
@@ -168,10 +168,10 @@ if ($ultimaImportacao) {
           AND numero_cartao IS NOT NULL
           AND numero_cartao != ''
           AND numero_cartao != 'NULL'
-        GROUP BY numero_cartao, bandeira_cartao
+        GROUP BY numero_cartao, bandeira
         HAVING COUNT(*) >= 2
         ORDER BY
-            CASE WHEN bandeira_cartao LIKE '%DEBITO%' OR bandeira_cartao LIKE '%DEBIT%' THEN 0 ELSE 1 END,
+            CASE WHEN bandeira LIKE '%DEBITO%' OR bandeira LIKE '%DEBIT%' THEN 0 ELSE 1 END,
             COUNT(*) DESC
         LIMIT 5
     ", [$importacaoId, $dataInicio . ' 00:00:00', $dataFim . ' 23:59:59']);
