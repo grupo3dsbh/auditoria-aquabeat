@@ -521,6 +521,12 @@ if ($viewCartoes):
             SELECT
                 promotor,
                 numero_cartao,
+                GROUP_CONCAT(DISTINCT bandeira ORDER BY bandeira SEPARATOR ', ') as bandeiras,
+                CASE
+                    WHEN MAX(CASE WHEN bandeira LIKE '%DEBITO%' OR bandeira LIKE '%DEBIT%' THEN 1 ELSE 0 END) = 1 THEN 'DÉBITO'
+                    WHEN MAX(CASE WHEN bandeira LIKE '%CREDITO%' OR bandeira LIKE '%CREDIT%' THEN 1 ELSE 0 END) = 1 THEN 'CRÉDITO'
+                    ELSE 'OUTRO'
+                END as tipo_cartao,
                 COUNT(DISTINCT documento_titular) as cpfs_diferentes,
                 COUNT(*) as total_titulos,
                 SUM(CASE WHEN status_inadimplencia LIKE 'INADIMPLENTE%' THEN 1 ELSE 0 END) as inadimplentes,
@@ -837,7 +843,14 @@ if ($viewCartoes):
                                             </div>
                                             <hr class="<?php echo $idx === 0 ? 'bg-white' : 'bg-dark'; ?>" style="opacity: 0.3;">
                                             <div class="<?php echo $idx === 0 ? 'text-white' : 'text-dark'; ?>">
-                                                <p class="mb-2"><i class="bi bi-credit-card"></i> <strong>Cartão:</strong> <?php echo sanitize($consultor['numero_cartao']); ?></p>
+                                                <p class="mb-2">
+                                                    <i class="bi bi-credit-card"></i> <strong>Cartão:</strong> <?php echo sanitize($consultor['numero_cartao']); ?>
+                                                    <?php if ($consultor['tipo_cartao'] == 'DÉBITO'): ?>
+                                                        <span class="badge bg-danger ms-1">DÉBITO</span>
+                                                    <?php elseif ($consultor['tipo_cartao'] == 'CRÉDITO'): ?>
+                                                        <span class="badge bg-primary ms-1">CRÉDITO</span>
+                                                    <?php endif; ?>
+                                                </p>
                                                 <p class="mb-2"><i class="bi bi-person-fill-exclamation"></i> <strong><?php echo $consultor['cpfs_diferentes']; ?></strong> clientes diferentes</p>
                                                 <p class="mb-2"><i class="bi bi-file-earmark-text"></i> <strong><?php echo $consultor['total_titulos']; ?></strong> títulos vendidos</p>
                                                 <p class="mb-2"><i class="bi bi-exclamation-circle-fill"></i> <strong><?php echo $consultor['taxa_inadimplencia']; ?>%</strong> inadimplência</p>
@@ -859,6 +872,7 @@ if ($viewCartoes):
                                             <th>#</th>
                                             <th>Consultor</th>
                                             <th>Cartão</th>
+                                            <th>Tipo</th>
                                             <th class="text-end">CPFs Dif.</th>
                                             <th class="text-end">Títulos</th>
                                             <th class="text-end">Taxa Inadimp.</th>
@@ -871,6 +885,15 @@ if ($viewCartoes):
                                             <td><strong><?php echo ($idx + 4); ?>º</strong></td>
                                             <td><?php echo sanitize($consultor['promotor']); ?></td>
                                             <td><span class="text-muted"><?php echo sanitize($consultor['numero_cartao']); ?></span></td>
+                                            <td>
+                                                <?php if ($consultor['tipo_cartao'] == 'DÉBITO'): ?>
+                                                    <span class="badge bg-danger">DÉBITO</span>
+                                                <?php elseif ($consultor['tipo_cartao'] == 'CRÉDITO'): ?>
+                                                    <span class="badge bg-primary">CRÉDITO</span>
+                                                <?php else: ?>
+                                                    <span class="badge bg-secondary">OUTRO</span>
+                                                <?php endif; ?>
+                                            </td>
                                             <td class="text-end"><span class="badge bg-danger"><?php echo $consultor['cpfs_diferentes']; ?></span></td>
                                             <td class="text-end"><?php echo $consultor['total_titulos']; ?></td>
                                             <td class="text-end"><strong class="text-danger"><?php echo $consultor['taxa_inadimplencia']; ?>%</strong></td>

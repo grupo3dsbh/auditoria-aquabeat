@@ -69,7 +69,7 @@ try {
             COUNT(CASE WHEN status_inadimplencia LIKE 'INADIMPLENTE%' THEN 1 END) as total_inadimplentes,
             COUNT(CASE WHEN status_inadimplencia = 'ADIMPLENTE' THEN 1 END) as total_adimplentes,
 
-            -- Categoria "REQUER ANÁLISE"
+            -- Categoria REQUER ANALISE
             COUNT(CASE WHEN status_inadimplencia LIKE 'INADIMPLENTE - Requer análise%' THEN 1 END) as requer_analise,
 
             -- Categorias especiais (compatibilidade)

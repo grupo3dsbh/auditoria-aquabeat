@@ -105,17 +105,13 @@ if ($ultimaImportacao) {
         SELECT
             promotor,
             COUNT(*) as total_vendas,
-            COUNT(CASE WHEN status_inadimplencia LIKE 'INADIMPLENTE%'
-                  AND status_inadimplencia NOT LIKE '%Requer análise%' THEN 1 END) as total_inadimplentes,
-            ROUND(COUNT(CASE WHEN status_inadimplencia LIKE 'INADIMPLENTE%'
-                  AND status_inadimplencia NOT LIKE '%Requer análise%' THEN 1 END) * 100.0 / COUNT(*), 2) as taxa_inadimplencia,
-            -- Primeira parcela paga (todos, para destacar coluna separada)
-            COUNT(CASE WHEN status_inadimplencia LIKE '%1ª parcela%' THEN 1 END) as apenas_1a_parcela,
+            COUNT(CASE WHEN status_inadimplencia LIKE 'INADIMPLENTE%' THEN 1 END) as total_inadimplentes,
+            ROUND(COUNT(CASE WHEN status_inadimplencia LIKE 'INADIMPLENTE%' THEN 1 END) * 100.0 / COUNT(*), 2) as taxa_inadimplencia,
+            -- Primeira parcela: conta todos os inadimplentes que pagaram apenas 1 parcela
+            COUNT(CASE WHEN qtd_parcelas_pagas = 1 AND status_inadimplencia LIKE 'INADIMPLENTE%' THEN 1 END) as apenas_1a_parcela,
             CASE
-                WHEN COUNT(CASE WHEN status_inadimplencia LIKE 'INADIMPLENTE%'
-                      AND status_inadimplencia NOT LIKE '%Requer análise%' THEN 1 END) * 100.0 / COUNT(*) >= 50 THEN 'ALTO RISCO'
-                WHEN COUNT(CASE WHEN status_inadimplencia LIKE 'INADIMPLENTE%'
-                      AND status_inadimplencia NOT LIKE '%Requer análise%' THEN 1 END) * 100.0 / COUNT(*) >= 30 THEN 'MÉDIO RISCO'
+                WHEN COUNT(CASE WHEN status_inadimplencia LIKE 'INADIMPLENTE%' THEN 1 END) * 100.0 / COUNT(*) >= 50 THEN 'ALTO RISCO'
+                WHEN COUNT(CASE WHEN status_inadimplencia LIKE 'INADIMPLENTE%' THEN 1 END) * 100.0 / COUNT(*) >= 30 THEN 'MÉDIO RISCO'
                 ELSE 'BAIXO'
             END as nivel_risco
         FROM titulos
@@ -125,7 +121,7 @@ if ($ultimaImportacao) {
           {$whereUsadoRelatorios}
         GROUP BY promotor
         HAVING COUNT(*) >= 3 AND total_inadimplentes > 0
-        ORDER BY total_inadimplentes DESC, taxa_inadimplencia DESC
+        ORDER BY taxa_inadimplencia DESC, total_inadimplentes DESC
         LIMIT 10
     ", [$importacaoId, $dataInicio . ' 00:00:00', $dataFim . ' 23:59:59']);
 }
@@ -369,7 +365,7 @@ if ($ultimaImportacao) {
                                                 <td class="text-end"><?php echo formatPercentage($consultor['taxa_inadimplencia'], 1); ?></td>
                                                 <td class="text-center">
                                                     <?php if ($consultor['apenas_1a_parcela'] > 0): ?>
-                                                        <span class="text-muted">-</span>
+                                                        <span class="badge bg-warning"><?php echo $consultor['apenas_1a_parcela']; ?></span>
                                                     <?php else: ?>
                                                         <span class="text-muted">-</span>
                                                     <?php endif; ?>
