@@ -29,6 +29,25 @@ class InadimplenciaHelper {
         $totalParcelas = (int)$titulo['quantidade_parcelas_venda'];
         $statusTitulo = $titulo['status_titulo'] ?? 'Ativo';
 
+        // REGRA CRÍTICA: Se não pagou NENHUMA parcela (0/X), SEMPRE é INADIMPLENTE
+        // Independente do status do título ou tempo decorrido
+        if ($parcelasPagas == 0) {
+            // Calcular há quanto tempo foi a venda para classificar melhor
+            $mesesDesdeVenda = self::calcularMesesDesdeVenda($dataPrimeiraVenda);
+
+            if ($mesesDesdeVenda <= 3) {
+                return 'INADIMPLENTE - Requer análise (até 3 meses)';
+            } elseif ($mesesDesdeVenda <= 6) {
+                return 'INADIMPLENTE - 3 a 6 meses';
+            } elseif ($mesesDesdeVenda <= 9) {
+                return 'INADIMPLENTE - 6 a 9 meses';
+            } elseif ($mesesDesdeVenda <= 12) {
+                return 'INADIMPLENTE - 9 a 12 meses';
+            } else {
+                return 'INADIMPLENTE - Mais de 12 meses';
+            }
+        }
+
         // IMPORTANTE: Títulos Bloqueados ou Cancelados param de ter cobrança
         // Para esses títulos, não faz sentido calcular inadimplência baseada em tempo
         if ($statusTitulo === 'Bloqueado' || $statusTitulo === 'Cancelado') {

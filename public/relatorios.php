@@ -105,18 +105,27 @@ if (!empty($_GET['apenas_1parcela']) && $_GET['apenas_1parcela'] == '1') {
     $filtros['apenas_1parcela'] = '1';
 }
 
-// Filtro por parcelas pagas
-if (isset($_GET['parcelas_filtro']) && $_GET['parcelas_filtro'] !== '') {
-    $parcelasFiltro = $_GET['parcelas_filtro'];
-    if ($parcelasFiltro === '0') {
-        $where[] = "(qtd_parcelas_pagas = 0 OR qtd_parcelas_pagas IS NULL)";
-    } elseif ($parcelasFiltro === '1') {
-        $where[] = "qtd_parcelas_pagas = 1";
-    } elseif ($parcelasFiltro === '2') {
-        $where[] = "qtd_parcelas_pagas = 2";
-    } elseif ($parcelasFiltro === '3+') {
-        $where[] = "qtd_parcelas_pagas >= 3";
+// Filtro por parcelas pagas (multi-select)
+if (isset($_GET['parcelas_filtro']) && !empty($_GET['parcelas_filtro'])) {
+    $parcelasFiltro = is_array($_GET['parcelas_filtro']) ? $_GET['parcelas_filtro'] : [$_GET['parcelas_filtro']];
+    $condicoesParc = [];
+
+    foreach ($parcelasFiltro as $filtro) {
+        if ($filtro === '0') {
+            $condicoesParc[] = "(qtd_parcelas_pagas = 0 OR qtd_parcelas_pagas IS NULL)";
+        } elseif ($filtro === '1') {
+            $condicoesParc[] = "qtd_parcelas_pagas = 1";
+        } elseif ($filtro === '2') {
+            $condicoesParc[] = "qtd_parcelas_pagas = 2";
+        } elseif ($filtro === '3+') {
+            $condicoesParc[] = "qtd_parcelas_pagas >= 3";
+        }
     }
+
+    if (!empty($condicoesParc)) {
+        $where[] = "(" . implode(' OR ', $condicoesParc) . ")";
+    }
+
     $filtros['parcelas_filtro'] = $parcelasFiltro;
 }
 
@@ -506,9 +515,9 @@ if ($viewCartoes):
             'total_cancelados' => array_sum(array_column($cartoesMultiplos, 'cancelados'))
         ];
 
-        // Top 3 Consultores - MESMO CARTÃO usado para MÚLTIPLOS CLIENTES (indicador de irregularidade)
+        // Top 10 Consultores - MESMO CARTÃO usado para MÚLTIPLOS CLIENTES (indicador de irregularidade)
         // IMPORTANTE: Detectar consultores que usaram o MESMO CARTÃO para VÁRIOS CPFs diferentes
-        $top3Consultores = $db->fetchAll("
+        $top10Consultores = $db->fetchAll("
             SELECT
                 promotor,
                 numero_cartao,
@@ -526,7 +535,7 @@ if ($viewCartoes):
             GROUP BY promotor, numero_cartao
             HAVING COUNT(DISTINCT documento_titular) >= 3
             ORDER BY cpfs_diferentes DESC, taxa_inadimplencia DESC
-            LIMIT 3
+            LIMIT 10
         ");
     }
 ?>
@@ -798,17 +807,18 @@ if ($viewCartoes):
                 </div>
             </div>
 
-            <!-- Top 3 Consultores com Alto Risco -->
-            <?php if (!empty($top3Consultores)): ?>
+            <!-- Top 10 Consultores com Alto Risco -->
+            <?php if (!empty($top10Consultores)): ?>
             <div class="row mb-4">
                 <div class="col-md-12">
                     <div class="card border-warning">
                         <div class="card-header bg-warning text-dark">
-                            <h5><i class="bi bi-exclamation-triangle-fill"></i> Top 3 Consultores - MESMO Cartão para MÚLTIPLOS Clientes (Irregularidade Detectada)</h5>
+                            <h5><i class="bi bi-exclamation-triangle-fill"></i> Top 10 Consultores - MESMO Cartão para MÚLTIPLOS Clientes (Irregularidade Detectada)</h5>
                         </div>
                         <div class="card-body">
-                            <div class="row">
-                                <?php foreach ($top3Consultores as $idx => $consultor): ?>
+                            <!-- Top 3 Destaque -->
+                            <div class="row mb-3">
+                                <?php foreach (array_slice($top10Consultores, 0, 3) as $idx => $consultor): ?>
                                 <div class="col-md-4">
                                     <div class="card mb-2 text-white <?php echo $idx === 0 ? 'bg-danger' : 'bg-warning'; ?>">
                                         <div class="card-body">
@@ -838,6 +848,39 @@ if ($viewCartoes):
                                 </div>
                                 <?php endforeach; ?>
                             </div>
+
+                            <!-- Demais Consultores (4º ao 10º) -->
+                            <?php if (count($top10Consultores) > 3): ?>
+                            <h6 class="mt-4 mb-3"><i class="bi bi-list-ol"></i> Demais Consultores Críticos (4º ao 10º)</h6>
+                            <div class="table-responsive">
+                                <table class="table table-sm table-hover">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th>#</th>
+                                            <th>Consultor</th>
+                                            <th>Cartão</th>
+                                            <th class="text-end">CPFs Dif.</th>
+                                            <th class="text-end">Títulos</th>
+                                            <th class="text-end">Taxa Inadimp.</th>
+                                            <th class="text-end">Taxa Bloq.</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <?php foreach (array_slice($top10Consultores, 3) as $idx => $consultor): ?>
+                                        <tr>
+                                            <td><strong><?php echo ($idx + 4); ?>º</strong></td>
+                                            <td><?php echo sanitize($consultor['promotor']); ?></td>
+                                            <td><span class="text-muted"><?php echo sanitize($consultor['numero_cartao']); ?></span></td>
+                                            <td class="text-end"><span class="badge bg-danger"><?php echo $consultor['cpfs_diferentes']; ?></span></td>
+                                            <td class="text-end"><?php echo $consultor['total_titulos']; ?></td>
+                                            <td class="text-end"><strong class="text-danger"><?php echo $consultor['taxa_inadimplencia']; ?>%</strong></td>
+                                            <td class="text-end"><strong class="text-warning"><?php echo $consultor['taxa_bloqueio']; ?>%</strong></td>
+                                        </tr>
+                                        <?php endforeach; ?>
+                                    </tbody>
+                                </table>
+                            </div>
+                            <?php endif; ?>
                         </div>
                     </div>
                 </div>
@@ -1539,13 +1582,19 @@ endif;
 
                     <div class="col-md-3">
                         <label class="form-label">Parcelas Pagas</label>
-                        <select name="parcelas_filtro" class="form-select">
-                            <option value="">Todas</option>
-                            <option value="0" <?php echo ($filtros['parcelas_filtro'] ?? '') === '0' ? 'selected' : ''; ?>>Nenhuma (0)</option>
-                            <option value="1" <?php echo ($filtros['parcelas_filtro'] ?? '') === '1' ? 'selected' : ''; ?>>Apenas 1ª</option>
-                            <option value="2" <?php echo ($filtros['parcelas_filtro'] ?? '') === '2' ? 'selected' : ''; ?>>Apenas 2</option>
-                            <option value="3+" <?php echo ($filtros['parcelas_filtro'] ?? '') === '3+' ? 'selected' : ''; ?>>3 ou mais</option>
+                        <select name="parcelas_filtro[]" class="form-select" multiple size="4">
+                            <?php
+                            $parcelasSelecionadas = $filtros['parcelas_filtro'] ?? [];
+                            if (!is_array($parcelasSelecionadas)) {
+                                $parcelasSelecionadas = [$parcelasSelecionadas];
+                            }
+                            ?>
+                            <option value="0" <?php echo in_array('0', $parcelasSelecionadas) ? 'selected' : ''; ?>>Nenhuma (0)</option>
+                            <option value="1" <?php echo in_array('1', $parcelasSelecionadas) ? 'selected' : ''; ?>>Apenas 1ª</option>
+                            <option value="2" <?php echo in_array('2', $parcelasSelecionadas) ? 'selected' : ''; ?>>Apenas 2</option>
+                            <option value="3+" <?php echo in_array('3+', $parcelasSelecionadas) ? 'selected' : ''; ?>>3 ou mais</option>
                         </select>
+                        <small class="text-muted">Ctrl+clique para múltiplos</small>
                     </div>
 
                     <div class="col-md-3">

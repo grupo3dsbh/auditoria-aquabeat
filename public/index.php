@@ -191,7 +191,7 @@ if ($ultimaImportacao) {
         ORDER BY
             MAX(CASE WHEN bandeira LIKE '%DEBITO%' OR bandeira LIKE '%DEBIT%' THEN 1 ELSE 0 END) DESC,
             COUNT(*) DESC
-        LIMIT 5
+        LIMIT 10
     ", [$importacaoId, $dataInicio . ' 00:00:00', $dataFim . ' 23:59:59']);
 }
 ?>
@@ -390,7 +390,7 @@ if ($ultimaImportacao) {
                 <div class="col-md-6">
                     <div class="card">
                         <div class="card-header bg-warning">
-                            <h5><i class="bi bi-credit-card"></i> Top 5 Cartões de Alto Risco</h5>
+                            <h5><i class="bi bi-credit-card"></i> Top 10 Cartões de Alto Risco</h5>
                             <small class="text-dark">Cartões usados em múltiplos títulos</small>
                         </div>
                         <div class="card-body" style="max-height: 500px; overflow-y: auto;">
@@ -495,11 +495,15 @@ if ($ultimaImportacao) {
                                                         <strong class="text-danger"><?php echo formatPercentage($consultor['taxa_risco'], 1); ?></strong>
                                                     </td>
                                                     <td class="text-center">
+                                                        <?php if (Auth::hasRole('gerente')): ?>
                                                         <a href="analise_consultor.php?promotor=<?php echo urlencode($consultor['promotor']); ?>"
                                                            class="btn btn-sm btn-outline-primary"
                                                            title="Análise Inteligente (IA)">
                                                             <i class="bi bi-robot"></i> Analisar
                                                         </a>
+                                                        <?php else: ?>
+                                                        <span class="text-muted">-</span>
+                                                        <?php endif; ?>
                                                     </td>
                                                 </tr>
                                             <?php endforeach; ?>
