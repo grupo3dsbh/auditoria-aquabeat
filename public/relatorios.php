@@ -152,6 +152,7 @@ $filtroStatus = $_GET['status_inadimplencia'] ?? '';
 $filtroTitulo = $_GET['status_titulo'] ?? '';
 
 // Análise por tipo de inadimplência
+$paramsAnalise = array_slice($params, 0, count($params) - 2);
 $inadimplenciaPorTipo = $db->fetchAll("
     SELECT
         status_inadimplencia,
@@ -163,7 +164,7 @@ $inadimplenciaPorTipo = $db->fetchAll("
       AND status_inadimplencia LIKE 'INADIMPLENTE%'
     GROUP BY status_inadimplencia
     ORDER BY total DESC",
-    array_slice($params, 0, count($params) - 2)
+    array_merge($paramsAnalise, $paramsAnalise) // Duplicar params: subquery + query principal
 );
 
 // Ranking de consultores com mais inadimplência
