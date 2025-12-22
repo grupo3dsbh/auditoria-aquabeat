@@ -270,6 +270,11 @@ class CSVImporter {
             // Processar análises agregadas
             $this->processAggregations();
 
+            // Recalcular status de inadimplência baseado em tempo decorrido
+            Logger::info("Recalculando status de inadimplência", ['importacao_id' => $importacaoId]);
+            $recalculo = InadimplenciaHelper::recalcularStatusImportacao($importacaoId);
+            Logger::info("Status de inadimplência recalculados", $recalculo);
+
             $this->db->commit();
 
             // Atualizar status final
