@@ -336,12 +336,22 @@ if ($viewCartoes):
 
     // Se tem um cartão específico, buscar detalhes
     if ($numeroCartao) {
+        // Ordenação para detalhes do cartão
+        $ordenarDetalhes = $_GET['ordenar_detalhes'] ?? 'data';
+        $orderByDetalhes = match($ordenarDetalhes) {
+            'cliente' => 'nome_titular ASC',
+            'consultor' => 'promotor ASC',
+            'status' => 'status_titulo DESC, status_inadimplencia DESC',
+            'inadimplencia' => 'CASE WHEN status_inadimplencia LIKE \'INADIMPLENTE%\' THEN 0 ELSE 1 END, data_primeira_venda DESC',
+            default => 'data_primeira_venda DESC'
+        };
+
         $titulosCartao = $db->fetchAll("
             SELECT *
             FROM titulos
             WHERE numero_cartao = ?
               {$wherePrefixos}
-            ORDER BY data_primeira_venda DESC
+            ORDER BY {$orderByDetalhes}
         ", [$numeroCartao]);
 
         $statsCartao = [
@@ -377,11 +387,11 @@ if ($viewCartoes):
 
         // Buscar cartões agrupados APENAS por numero_cartao (ignorar bandeira)
         $orderBy = match($ordenarPor) {
-            'cpfs' => 'total_documentos DESC',
-            'consultores' => 'total_consultores DESC',
-            'inadimplentes' => 'inadimplentes DESC',
-            'bloqueados' => 'bloqueados DESC',
-            default => 'total_titulos DESC'
+            'cpfs' => 'COUNT(DISTINCT documento_titular) DESC',
+            'consultores' => 'COUNT(DISTINCT promotor) DESC',
+            'inadimplentes' => 'SUM(CASE WHEN status_inadimplencia LIKE \'INADIMPLENTE%\' THEN 1 ELSE 0 END) DESC',
+            'bloqueados' => 'SUM(CASE WHEN status_titulo IN (\'Bloqueado\', \'Cancelado\') THEN 1 ELSE 0 END) DESC',
+            default => 'COUNT(*) DESC'
         };
 
         $cartoesMultiplos = $db->fetchAll("
@@ -574,8 +584,19 @@ if ($viewCartoes):
             <div class="row">
                 <div class="col-md-12">
                     <div class="card">
-                        <div class="card-header">
-                            <h5><i class="bi bi-list"></i> Todos os Títulos com este Cartão</h5>
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <h5 class="mb-0"><i class="bi bi-list"></i> Todos os Títulos com este Cartão</h5>
+                            <form method="GET" class="d-flex gap-2">
+                                <input type="hidden" name="view" value="cartoes">
+                                <input type="hidden" name="numero_cartao" value="<?php echo sanitize($numeroCartao); ?>">
+                                <select name="ordenar_detalhes" class="form-select form-select-sm" onchange="this.form.submit()" style="width: auto;">
+                                    <option value="data" <?php echo ($ordenarDetalhes ?? 'data') === 'data' ? 'selected' : ''; ?>>Ordenar por Data</option>
+                                    <option value="cliente" <?php echo ($ordenarDetalhes ?? '') === 'cliente' ? 'selected' : ''; ?>>Ordenar por Cliente</option>
+                                    <option value="consultor" <?php echo ($ordenarDetalhes ?? '') === 'consultor' ? 'selected' : ''; ?>>Ordenar por Consultor</option>
+                                    <option value="status" <?php echo ($ordenarDetalhes ?? '') === 'status' ? 'selected' : ''; ?>>Ordenar por Status</option>
+                                    <option value="inadimplencia" <?php echo ($ordenarDetalhes ?? '') === 'inadimplencia' ? 'selected' : ''; ?>>Inadimplentes Primeiro</option>
+                                </select>
+                            </form>
                         </div>
                         <div class="card-body">
                             <div class="table-responsive">
