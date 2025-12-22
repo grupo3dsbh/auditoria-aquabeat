@@ -53,10 +53,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         Logger::error('Erro ao executar migration usado_relatorios: ' . $e->getMessage());
     }
 }
-
-$pageTitle = 'Executar Migration - usado_relatorios';
-include APP_ROOT . '/includes/header.php';
 ?>
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Executar Migration - <?php echo SITE_NAME; ?></title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+</head>
+<body>
+    <?php include '../navbar.php'; ?>
 
 <div class="container-fluid mt-4">
     <div class="row mb-4">
@@ -128,4 +136,6 @@ include APP_ROOT . '/includes/header.php';
     </div>
 </div>
 
-<?php include APP_ROOT . '/includes/footer.php'; ?>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
