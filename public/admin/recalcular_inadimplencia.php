@@ -130,10 +130,11 @@ $success = $success ?? getFlashMessage('success');
                     <h6><i class="bi bi-info-circle"></i> O que é o Recálculo de Inadimplência?</h6>
                     <p class="mb-2">Esta ferramenta recalcula o status de inadimplência de todos os títulos usando a <strong>lógica correta baseada em tempo</strong>:</p>
                     <ul class="mb-0">
-                        <li>Calcula quantos <strong>meses</strong> se passaram desde a primeira venda</li>
-                        <li>Compara parcelas pagas com parcelas <strong>esperadas</strong> (não com o total do plano)</li>
-                        <li>Exemplo: Vendido há 3 meses, pago 3 parcelas = <span class="badge bg-success">ADIMPLENTE</span></li>
-                        <li>Exemplo: Vendido há 5 meses, pago 3 parcelas = <span class="badge bg-danger">INADIMPLENTE</span></li>
+                        <li><strong>1ª parcela é paga NO DIA DA COMPRA</strong> (não 1 mês depois)</li>
+                        <li><strong>Inadimplente = 2 ou mais parcelas em atraso</strong> (tolera 1 parcela em atraso)</li>
+                        <li>Conta apenas parcelas que <strong>realmente já venceram</strong> pelo dia do mês</li>
+                        <li>Exemplo: Vendido 17/09, hoje 22/12, pagou 3 de 4 esperadas = <span class="badge bg-success">ADIMPLENTE</span> (1 em atraso)</li>
+                        <li>Exemplo: Vendido 17/09, hoje 22/12, pagou 2 de 4 esperadas = <span class="badge bg-danger">INADIMPLENTE</span> (2 em atraso)</li>
                     </ul>
                 </div>
 
