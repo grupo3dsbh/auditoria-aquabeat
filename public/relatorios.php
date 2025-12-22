@@ -87,6 +87,28 @@ if (!empty($_GET['apenas_1parcela']) && $_GET['apenas_1parcela'] == '1') {
     $filtros['apenas_1parcela'] = '1';
 }
 
+// Filtro por parcelas pagas
+if (isset($_GET['parcelas_filtro']) && $_GET['parcelas_filtro'] !== '') {
+    $parcelasFiltro = $_GET['parcelas_filtro'];
+    if ($parcelasFiltro === '0') {
+        $where[] = "(qtd_parcelas_pagas = 0 OR qtd_parcelas_pagas IS NULL)";
+    } elseif ($parcelasFiltro === '1') {
+        $where[] = "qtd_parcelas_pagas = 1";
+    } elseif ($parcelasFiltro === '2') {
+        $where[] = "qtd_parcelas_pagas = 2";
+    } elseif ($parcelasFiltro === '3+') {
+        $where[] = "qtd_parcelas_pagas >= 3";
+    }
+    $filtros['parcelas_filtro'] = $parcelasFiltro;
+}
+
+// Filtro por CPF duplicado
+if (!empty($_GET['cpf_duplicado']) && $_GET['cpf_duplicado'] == '1') {
+    $where[] = "documento_titular IN (SELECT documento_titular FROM titulos WHERE importacao_id = ? GROUP BY documento_titular HAVING COUNT(*) > 1)";
+    $params[] = $importacaoId;
+    $filtros['cpf_duplicado'] = '1';
+}
+
 // Ordenação
 $orderBy = !empty($_GET['order_by']) ? $_GET['order_by'] : 'data_primeira_venda';
 $orderDir = !empty($_GET['order_dir']) && $_GET['order_dir'] == 'ASC' ? 'ASC' : 'DESC';
@@ -486,37 +508,90 @@ $promotores = $db->fetchAll("
                 </h6>
             </div>
             <div class="card-body">
-                <div class="table-responsive">
-                    <table class="table table-sm table-hover">
-                        <thead>
-                            <tr>
-                                <th>Título</th>
-                                <th>Titular</th>
-                                <th>Consultor</th>
-                                <th>Status</th>
-                                <th>Dias</th>
-                                <th>Inadimplência</th>
-                                <th class="text-end">Risco</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <?php foreach ($titulosProblematicos as $titulo): ?>
-                                <tr>
-                                    <td><small><?php echo sanitize($titulo['numero_titulo']); ?></small></td>
-                                    <td><small><?php echo sanitize($titulo['nome_titular']); ?></small></td>
-                                    <td><small><?php echo sanitize($titulo['promotor']); ?></small></td>
-                                    <td>
-                                        <span class="badge bg-<?php echo getStatusBadgeClass($titulo['status_titulo']); ?>">
-                                            <?php echo $titulo['status_titulo']; ?>
-                                        </span>
-                                    </td>
-                                    <td><?php echo $titulo['dias_desde_venda']; ?> dias</td>
-                                    <td><small><?php echo $titulo['status_inadimplencia']; ?></small></td>
-                                    <td class="text-end"><small><?php echo formatCurrency($titulo['saldo_restante'] ?? 0); ?></small></td>
-                                </tr>
-                            <?php endforeach; ?>
-                        </tbody>
-                    </table>
+                <!-- Tabs -->
+                <ul class="nav nav-tabs mb-3" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" id="todos-tab" data-bs-toggle="tab" data-bs-target="#todos-problematicos" type="button" role="tab">
+                            Todos (<?php echo count($titulosProblematicos); ?>)
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="ativos-tab" data-bs-toggle="tab" data-bs-target="#ativos-problematicos" type="button" role="tab">
+                            Apenas Ativos (<?php echo count(array_filter($titulosProblematicos, fn($t) => $t['status_titulo'] == 'Ativo')); ?>)
+                        </button>
+                    </li>
+                </ul>
+
+                <!-- Tab Content -->
+                <div class="tab-content">
+                    <!-- Todos -->
+                    <div class="tab-pane fade show active" id="todos-problematicos" role="tabpanel">
+                        <div class="table-responsive">
+                            <table class="table table-sm table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>Título</th>
+                                        <th>Titular</th>
+                                        <th>Consultor</th>
+                                        <th>Status</th>
+                                        <th>Dias</th>
+                                        <th>Inadimplência</th>
+                                        <th class="text-end">Risco</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <?php foreach ($titulosProblematicos as $titulo): ?>
+                                        <tr>
+                                            <td><small><?php echo sanitize($titulo['numero_titulo']); ?></small></td>
+                                            <td><small><?php echo sanitize($titulo['nome_titular']); ?></small></td>
+                                            <td><small><?php echo sanitize($titulo['promotor']); ?></small></td>
+                                            <td>
+                                                <span class="badge bg-<?php echo getStatusBadgeClass($titulo['status_titulo']); ?>">
+                                                    <?php echo $titulo['status_titulo']; ?>
+                                                </span>
+                                            </td>
+                                            <td><?php echo $titulo['dias_desde_venda']; ?> dias</td>
+                                            <td><small><?php echo $titulo['status_inadimplencia']; ?></small></td>
+                                            <td class="text-end"><small><?php echo formatCurrency($titulo['saldo_restante'] ?? 0); ?></small></td>
+                                        </tr>
+                                    <?php endforeach; ?>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Apenas Ativos -->
+                    <div class="tab-pane fade" id="ativos-problematicos" role="tabpanel">
+                        <div class="table-responsive">
+                            <table class="table table-sm table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>Título</th>
+                                        <th>Titular</th>
+                                        <th>Consultor</th>
+                                        <th>Dias</th>
+                                        <th>Inadimplência</th>
+                                        <th class="text-end">Risco</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <?php
+                                    $ativosProblematicos = array_filter($titulosProblematicos, fn($t) => $t['status_titulo'] == 'Ativo');
+                                    foreach ($ativosProblematicos as $titulo):
+                                    ?>
+                                        <tr>
+                                            <td><small><?php echo sanitize($titulo['numero_titulo']); ?></small></td>
+                                            <td><small><?php echo sanitize($titulo['nome_titular']); ?></small></td>
+                                            <td><small><?php echo sanitize($titulo['promotor']); ?></small></td>
+                                            <td><?php echo $titulo['dias_desde_venda']; ?> dias</td>
+                                            <td><small><?php echo $titulo['status_inadimplencia']; ?></small></td>
+                                            <td class="text-end"><small><?php echo formatCurrency($titulo['saldo_restante'] ?? 0); ?></small></td>
+                                        </tr>
+                                    <?php endforeach; ?>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -597,7 +672,21 @@ $promotores = $db->fetchAll("
 
                     <div class="col-md-3">
                         <label class="form-label">Parcelas Pagas</label>
-                        <input type="number" name="qtd_parcelas_pagas" class="form-control" value="<?php echo sanitize($filtros['qtd_parcelas_pagas'] ?? ''); ?>" placeholder="Quantidade" min="0">
+                        <select name="parcelas_filtro" class="form-select">
+                            <option value="">Todas</option>
+                            <option value="0" <?php echo ($filtros['parcelas_filtro'] ?? '') === '0' ? 'selected' : ''; ?>>Nenhuma (0)</option>
+                            <option value="1" <?php echo ($filtros['parcelas_filtro'] ?? '') === '1' ? 'selected' : ''; ?>>Apenas 1ª</option>
+                            <option value="2" <?php echo ($filtros['parcelas_filtro'] ?? '') === '2' ? 'selected' : ''; ?>>Apenas 2</option>
+                            <option value="3+" <?php echo ($filtros['parcelas_filtro'] ?? '') === '3+' ? 'selected' : ''; ?>>3 ou mais</option>
+                        </select>
+                    </div>
+
+                    <div class="col-md-3">
+                        <label class="form-label">CPFs Duplicados</label>
+                        <select name="cpf_duplicado" class="form-select">
+                            <option value="">Todos</option>
+                            <option value="1" <?php echo ($filtros['cpf_duplicado'] ?? '') == '1' ? 'selected' : ''; ?>>Apenas CPFs com múltiplas cotas</option>
+                        </select>
                     </div>
 
                     <div class="col-12">
@@ -764,6 +853,20 @@ $promotores = $db->fetchAll("
             form.submit();
         }
 
+        // Função para converter markdown básico para HTML
+        function formatarResumo(texto) {
+            // Converter **texto** para <strong>texto</strong>
+            texto = texto.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+
+            // Converter quebras de linha para <br>
+            texto = texto.replace(/\n/g, '<br>');
+
+            // Converter emojis de lista (•) em pontos de lista
+            texto = texto.replace(/^• /gm, '&bull; ');
+
+            return texto;
+        }
+
         // Gerar resumo com IA
         function gerarResumoIA() {
             const btn = event.target;
@@ -775,7 +878,8 @@ $promotores = $db->fetchAll("
                 .then(response => response.json())
                 .then(data => {
                     if (data.success) {
-                        document.getElementById('iaResumo').innerHTML = '<div class="alert alert-light"><pre class="mb-0">' + data.resumo + '</pre></div>';
+                        const resumoFormatado = formatarResumo(data.resumo);
+                        document.getElementById('iaResumo').innerHTML = '<div class="alert alert-light">' + resumoFormatado + '</div>';
                     } else {
                         alert('Erro ao gerar resumo: ' + data.error);
                         btn.innerHTML = originalHTML;
