@@ -43,6 +43,7 @@
                         <li><a class="dropdown-item" href="<?php echo url('admin/queries.php'); ?>"><i class="bi bi-code-square"></i> Queries SQL</a></li>
                         <li><a class="dropdown-item" href="<?php echo url('admin/gerenciar_importacoes.php'); ?>"><i class="bi bi-trash"></i> Gerenciar Importações</a></li>
                         <li><a class="dropdown-item" href="<?php echo url('admin/recalcular_inadimplencia.php'); ?>"><i class="bi bi-calculator"></i> Recalcular Inadimplência</a></li>
+                        <li><a class="dropdown-item" href="<?php echo url('admin/gerenciar_titulos_prefixo.php'); ?>"><i class="bi bi-filter-circle"></i> Gerenciar Prefixos (SFA/SBF)</a></li>
                         <li><hr class="dropdown-divider"></li>
                         <?php endif; ?>
                         <li><a class="dropdown-item" href="<?php echo url('importacoes.php'); ?>"><i class="bi bi-list"></i> Histórico de Importações</a></li>

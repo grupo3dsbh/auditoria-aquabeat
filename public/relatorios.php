@@ -644,7 +644,13 @@ endif;
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    <?php foreach ($inadimplenciaPorTipo as $tipo): ?>
+                                    <?php
+                                    $totalQtd = 0;
+                                    $totalValorRisco = 0;
+                                    foreach ($inadimplenciaPorTipo as $tipo):
+                                        $totalQtd += $tipo['total'];
+                                        $totalValorRisco += $tipo['valor_risco'] ?? 0;
+                                    ?>
                                         <tr>
                                             <td>
                                                 <small><?php echo sanitize($tipo['status_inadimplencia']); ?></small>
@@ -655,6 +661,14 @@ endif;
                                         </tr>
                                     <?php endforeach; ?>
                                 </tbody>
+                                <tfoot class="table-secondary">
+                                    <tr>
+                                        <th><strong>TOTAL</strong></th>
+                                        <th class="text-end"><strong><?php echo number_format($totalQtd, 0, ',', '.'); ?></strong></th>
+                                        <th class="text-end">-</th>
+                                        <th class="text-end"><strong><?php echo formatCurrency($totalValorRisco); ?></strong></th>
+                                    </tr>
+                                </tfoot>
                             </table>
                         <?php endif; ?>
                     </div>
@@ -780,6 +794,14 @@ endif;
 
                     <!-- Apenas Ativos -->
                     <div class="tab-pane fade" id="ativos-problematicos" role="tabpanel">
+                        <?php
+                        $ativosProblematicos = array_filter($titulosProblematicos, fn($t) => $t['status_titulo'] == 'Ativo');
+                        ?>
+                        <?php if (empty($ativosProblematicos)): ?>
+                            <div class="alert alert-info">
+                                <i class="bi bi-info-circle"></i> Não há títulos <strong>Ativos</strong> nesta categoria. Todos os títulos problemáticos foram bloqueados ou cancelados.
+                            </div>
+                        <?php else: ?>
                         <div class="table-responsive">
                             <table class="table table-sm table-hover">
                                 <thead>
@@ -793,10 +815,7 @@ endif;
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    <?php
-                                    $ativosProblematicos = array_filter($titulosProblematicos, fn($t) => $t['status_titulo'] == 'Ativo');
-                                    foreach ($ativosProblematicos as $titulo):
-                                    ?>
+                                    <?php foreach ($ativosProblematicos as $titulo): ?>
                                         <tr>
                                             <td><small><?php echo sanitize($titulo['numero_titulo']); ?></small></td>
                                             <td><small><?php echo sanitize($titulo['nome_titular']); ?></small></td>
@@ -809,6 +828,7 @@ endif;
                                 </tbody>
                             </table>
                         </div>
+                        <?php endif; ?>
                     </div>
                 </div>
             </div>
@@ -939,45 +959,45 @@ endif;
                 <div class="row g-2">
                     <!-- Categorias Especiais -->
                     <div class="col-md-3">
-                        <div class="p-2 inadimplente-1parcela border rounded text-center" style="background-color: #ffebee;">
+                        <div class="p-2 border rounded text-center" style="background-color: #ff6b9d; color: white;">
                             <small><strong>Apenas 1ª Parcela</strong><br>
-                            <span class="text-muted">Pode ser premiação</span></small>
+                            <span style="opacity: 0.9;">Pode ser premiação</span></small>
                         </div>
                     </div>
                     <div class="col-md-3">
-                        <div class="p-2 inadimplente-2parcelas border rounded text-center" style="background-color: #ffe0b2;">
+                        <div class="p-2 border rounded text-center" style="background-color: #ff9800; color: white;">
                             <small><strong>Apenas 2 Parcelas</strong><br>
-                            <span class="text-muted">Premiação</span></small>
+                            <span style="opacity: 0.9;">Premiação</span></small>
                         </div>
                     </div>
 
                     <!-- Novas Categorias por Tempo -->
                     <div class="col-md-3">
-                        <div class="p-2 inadimplente-ate3 border rounded text-center" style="background-color: #fff9c4;">
+                        <div class="p-2 border rounded text-center" style="background-color: #ffeb3b; color: #000;">
                             <small><strong>Até 3 meses</strong><br>
                             <span class="text-muted">Premiação inicial</span></small>
                         </div>
                     </div>
                     <div class="col-md-3">
-                        <div class="p-2 inadimplente-3a6 border rounded text-center" style="background-color: #ffe0b2;">
+                        <div class="p-2 border rounded text-center" style="background-color: #ff9800; color: white;">
                             <small><strong>3 a 6 meses</strong><br>
-                            <span class="text-muted">Experiência</span></small>
+                            <span style="opacity: 0.9;">Experiência</span></small>
                         </div>
                     </div>
                     <div class="col-md-3">
-                        <div class="p-2 inadimplente-6a9 border rounded text-center" style="background-color: #ffcc80;">
+                        <div class="p-2 border rounded text-center" style="background-color: #ff6f00; color: white;">
                             <small><strong>6 a 9 meses</strong><br>
-                            <span class="text-muted">Expectativa</span></small>
+                            <span style="opacity: 0.9;">Expectativa</span></small>
                         </div>
                     </div>
                     <div class="col-md-3">
-                        <div class="p-2 inadimplente-9a12 border rounded text-center" style="background-color: #ffcdd2;">
+                        <div class="p-2 border rounded text-center" style="background-color: #f44336; color: white;">
                             <small><strong>9 a 12 meses</strong><br>
-                            <span class="text-muted">Problema sério</span></small>
+                            <span style="opacity: 0.9;">Problema sério</span></small>
                         </div>
                     </div>
                     <div class="col-md-3">
-                        <div class="p-2 inadimplente-12mais border rounded text-center" style="background-color: #ef5350; color: white;">
+                        <div class="p-2 border rounded text-center" style="background-color: #c62828; color: white; font-weight: bold;">
                             <small><strong>Mais de 12 meses</strong><br>
                             <span style="opacity: 0.9;">Crônico</span></small>
                         </div>
@@ -985,9 +1005,9 @@ endif;
 
                     <!-- Adimplente -->
                     <div class="col-md-3">
-                        <div class="p-2 adimplente border rounded text-center" style="background-color: #e8f5e9;">
+                        <div class="p-2 border rounded text-center" style="background-color: #4caf50; color: white;">
                             <small><strong>Adimplente</strong><br>
-                            <span class="text-muted">Em dia</span></small>
+                            <span style="opacity: 0.9;">Em dia</span></small>
                         </div>
                     </div>
                 </div>
@@ -999,23 +1019,29 @@ endif;
             <div class="card-header d-flex justify-content-between align-items-center">
                 <h5><i class="bi bi-table"></i> Resultados (<?php echo number_format($total, 0, ',', '.'); ?> registros)</h5>
                 <div class="btn-group btn-group-sm">
-                    <button class="btn btn-outline-secondary" onclick="ordenar('nome_titular', '<?php echo $orderDir == 'ASC' ? 'DESC' : 'ASC'; ?>')">
-                        <i class="bi bi-sort-alpha-down"></i> Nome
+                    <button class="btn btn-outline-secondary <?php echo $orderBy == 'nome_titular' ? 'active' : ''; ?>" onclick="ordenar('nome_titular', '<?php echo ($orderBy == 'nome_titular' && $orderDir == 'ASC') ? 'DESC' : 'ASC'; ?>')">
+                        <i class="bi bi-sort-alpha-<?php echo ($orderBy == 'nome_titular' && $orderDir == 'ASC') ? 'up' : 'down'; ?>"></i> Nome
+                        <?php if ($orderBy == 'nome_titular'): ?><small>(<?php echo $orderDir; ?>)</small><?php endif; ?>
                     </button>
-                    <button class="btn btn-outline-secondary" onclick="ordenar('promotor', 'ASC')">
+                    <button class="btn btn-outline-secondary <?php echo $orderBy == 'promotor' ? 'active' : ''; ?>" onclick="ordenar('promotor', '<?php echo ($orderBy == 'promotor' && $orderDir == 'ASC') ? 'DESC' : 'ASC'; ?>')">
                         <i class="bi bi-person"></i> Promotor
+                        <?php if ($orderBy == 'promotor'): ?><small>(<?php echo $orderDir; ?>)</small><?php endif; ?>
                     </button>
-                    <button class="btn btn-outline-secondary" onclick="ordenar('status_titulo', 'ASC')">
+                    <button class="btn btn-outline-secondary <?php echo $orderBy == 'status_titulo' ? 'active' : ''; ?>" onclick="ordenar('status_titulo', '<?php echo ($orderBy == 'status_titulo' && $orderDir == 'ASC') ? 'DESC' : 'ASC'; ?>')">
                         <i class="bi bi-flag"></i> Status
+                        <?php if ($orderBy == 'status_titulo'): ?><small>(<?php echo $orderDir; ?>)</small><?php endif; ?>
                     </button>
-                    <button class="btn btn-outline-secondary" onclick="ordenar('status_inadimplencia', 'ASC')">
+                    <button class="btn btn-outline-secondary <?php echo $orderBy == 'status_inadimplencia' ? 'active' : ''; ?>" onclick="ordenar('status_inadimplencia', '<?php echo ($orderBy == 'status_inadimplencia' && $orderDir == 'ASC') ? 'DESC' : 'ASC'; ?>')">
                         <i class="bi bi-palette"></i> Inadimplência (Cor)
+                        <?php if ($orderBy == 'status_inadimplencia'): ?><small>(<?php echo $orderDir; ?>)</small><?php endif; ?>
                     </button>
-                    <button class="btn btn-outline-secondary" onclick="ordenar('qtd_parcelas_pagas', 'ASC')">
+                    <button class="btn btn-outline-secondary <?php echo $orderBy == 'qtd_parcelas_pagas' ? 'active' : ''; ?>" onclick="ordenar('qtd_parcelas_pagas', '<?php echo ($orderBy == 'qtd_parcelas_pagas' && $orderDir == 'ASC') ? 'DESC' : 'ASC'; ?>')">
                         <i class="bi bi-cash-stack"></i> Parcelas
+                        <?php if ($orderBy == 'qtd_parcelas_pagas'): ?><small>(<?php echo $orderDir; ?>)</small><?php endif; ?>
                     </button>
-                    <button class="btn btn-outline-secondary" onclick="ordenar('data_primeira_venda', 'DESC')">
+                    <button class="btn btn-outline-secondary <?php echo $orderBy == 'data_primeira_venda' ? 'active' : ''; ?>" onclick="ordenar('data_primeira_venda', '<?php echo ($orderBy == 'data_primeira_venda' && $orderDir == 'DESC') ? 'ASC' : 'DESC'; ?>')">
                         <i class="bi bi-calendar"></i> Data
+                        <?php if ($orderBy == 'data_primeira_venda'): ?><small>(<?php echo $orderDir; ?>)</small><?php endif; ?>
                     </button>
                 </div>
             </div>
