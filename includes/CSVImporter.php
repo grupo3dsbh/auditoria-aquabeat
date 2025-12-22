@@ -320,6 +320,38 @@ class CSVImporter {
     }
 
     /**
+     * Converter valor decimal de CSV para float
+     * Detecta automaticamente formato brasileiro (1.234,56) ou americano (1234.56)
+     */
+    private function parseDecimal($value) {
+        if ($value === '' || $value === null) {
+            return null;
+        }
+
+        $value = trim($value);
+
+        // Detectar formato
+        $temVirgula = strpos($value, ',') !== false;
+        $temPonto = strpos($value, '.') !== false;
+
+        // Formato brasileiro: 1.234,56 ou 1234,56
+        if ($temVirgula && (!$temPonto || strrpos($value, ',') > strrpos($value, '.'))) {
+            // Remove pontos (separador de milhar) e troca vírgula por ponto
+            $value = str_replace('.', '', $value);
+            $value = str_replace(',', '.', $value);
+        }
+        // Formato americano com separador de milhar: 1,234.56
+        elseif ($temVirgula && $temPonto && strrpos($value, '.') > strrpos($value, ',')) {
+            // Remove vírgulas (separador de milhar)
+            $value = str_replace(',', '', $value);
+        }
+        // Formato americano simples: 1234.56 (já está correto, não faz nada)
+        // Formato sem decimais: 1234 (já está correto, não faz nada)
+
+        return floatval($value);
+    }
+
+    /**
      * Mapear linha do CSV para dados do banco
      */
     private function mapRowToData($row) {
@@ -348,9 +380,9 @@ class CSVImporter {
                 continue;
             }
 
-            // Campos decimais
+            // Campos decimais - USA NOVA FUNÇÃO
             if (in_array($field, ['valor_parcela', 'valor_total_plano', 'total_pago', 'saldo_restante', 'taxa_inadimplencia_cartao', 'taxa_inadimplencia_consultor', 'taxa_inadimplencia_3meses_consultor', 'taxa_inadimplencia_6meses_consultor', 'taxa_inadimplencia_1ano_consultor', 'valor_recebido_consultor', 'valor_perdido_consultor'])) {
-                $data[$field] = $value !== '' ? floatval(str_replace(',', '.', str_replace('.', '', $value))) : null;
+                $data[$field] = $this->parseDecimal($value);
                 continue;
             }
 
