@@ -40,6 +40,9 @@
                         <li><a class="dropdown-item" href="<?php echo url('admin/configuracoes.php'); ?>"><i class="bi bi-sliders"></i> Configurações</a></li>
                         <li><a class="dropdown-item" href="<?php echo url('admin/logs.php'); ?>"><i class="bi bi-clock-history"></i> Logs</a></li>
                         <li><hr class="dropdown-divider"></li>
+                        <li><a class="dropdown-item" href="<?php echo url('admin/gerenciar_importacoes.php'); ?>"><i class="bi bi-trash"></i> Gerenciar Importações</a></li>
+                        <li><a class="dropdown-item" href="<?php echo url('admin/recalcular_inadimplencia.php'); ?>"><i class="bi bi-calculator"></i> Recalcular Inadimplência</a></li>
+                        <li><hr class="dropdown-divider"></li>
                         <?php endif; ?>
                         <li><a class="dropdown-item" href="<?php echo url('importacoes.php'); ?>"><i class="bi bi-list"></i> Histórico de Importações</a></li>
                     </ul>
