@@ -250,36 +250,46 @@ $promotores = $db->fetchAll("
             table { font-size: 9pt; }
         }
 
-        /* Cores por tipo de inadimplência */
-        .inadimplente-1parcela {
+        /* Cores por tipo de inadimplência - Mais específico para sobrescrever Bootstrap */
+        .table > tbody > tr.inadimplente-1parcela,
+        .table tbody tr.inadimplente-1parcela {
             background-color: #ffebee !important;
         }
-        .inadimplente-2parcelas {
+        .table > tbody > tr.inadimplente-2parcelas,
+        .table tbody tr.inadimplente-2parcelas {
             background-color: #ffe0b2 !important;
         }
-        .inadimplente-menos50 {
+        .table > tbody > tr.inadimplente-menos50,
+        .table tbody tr.inadimplente-menos50 {
             background-color: #fff9c4 !important;
         }
-        .inadimplente-mais50 {
+        .table > tbody > tr.inadimplente-mais50,
+        .table tbody tr.inadimplente-mais50 {
             background-color: #ffcdd2 !important;
         }
-        .adimplente {
+        .table > tbody > tr.adimplente,
+        .table tbody tr.adimplente {
             background-color: #e8f5e9 !important;
         }
 
         /* Hover mantém a cor */
+        .table-hover > tbody > tr.inadimplente-1parcela:hover,
         .table-hover tbody tr.inadimplente-1parcela:hover {
             background-color: #ffcdd2 !important;
         }
+        .table-hover > tbody > tr.inadimplente-2parcelas:hover,
         .table-hover tbody tr.inadimplente-2parcelas:hover {
             background-color: #ffcc80 !important;
         }
+        .table-hover > tbody > tr.inadimplente-menos50:hover,
         .table-hover tbody tr.inadimplente-menos50:hover {
             background-color: #fff59d !important;
         }
+        .table-hover > tbody > tr.inadimplente-mais50:hover,
         .table-hover tbody tr.inadimplente-mais50:hover {
             background-color: #ef9a9a !important;
         }
+        .table-hover > tbody > tr.adimplente:hover,
         .table-hover tbody tr.adimplente:hover {
             background-color: #c8e6c9 !important;
         }
