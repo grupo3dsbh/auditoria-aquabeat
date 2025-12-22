@@ -10,9 +10,9 @@ $db = Database::getInstance();
 // Obter última importação
 $ultimaImportacao = $db->fetchOne("SELECT * FROM importacoes ORDER BY criado_em DESC LIMIT 1");
 
-// Filtro de período: 01/11/2024 até 2 meses atrás
+// Filtro de período: 01/11/2024 até HOJE (dashboard mostra dados atualizados)
 $dataInicio = '2024-11-01';
-$dataFim = date('Y-m-t', strtotime('-2 months')); // Último dia de 2 meses atrás
+$dataFim = date('Y-m-d'); // Hoje
 
 // Estatísticas gerais
 $stats = [];

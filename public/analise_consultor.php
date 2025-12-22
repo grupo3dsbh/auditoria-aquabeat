@@ -173,7 +173,7 @@ O consultor **{$promotor}** apresenta um padrão de risco elevado em suas vendas
 
 1. **Uso excessivo de Débito/PIX**: Essas formas de pagamento NÃO garantem recorrência automática, aumentando drasticamente o risco de inadimplência.
 
-2. **Alta taxa de bloqueios**: Títulos bloqueados indicam possível fraude, documentação irregular ou problemas no processo de venda.
+2. **Alta taxa de bloqueios**: Títulos bloqueados indicam documentação irregular, processos inadequados ou problemas na qualificação do cliente.
 
 3. **Padrão de \"apenas 1 parcela\"**: Sugere que clientes estão pagando apenas para ganhar a premiação inicial, sem intenção de continuar.
 

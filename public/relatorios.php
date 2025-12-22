@@ -328,86 +328,278 @@ $promotores = $db->fetchAll("
     [$importacaoId]
 );
 
-// Se view=cartoes, renderizar apenas os cards e sair
+// Se view=cartoes, renderizar view específica de cartões
 if ($viewCartoes):
+    $numeroCartao = $_GET['numero_cartao'] ?? null;
+
+    // Se tem um cartão específico, buscar detalhes
+    if ($numeroCartao) {
+        $titulosCartao = $db->fetchAll("
+            SELECT *
+            FROM titulos
+            WHERE numero_cartao = ?
+              {$wherePrefixos}
+            ORDER BY data_primeira_venda DESC
+        ", [$numeroCartao]);
+
+        $statsCartao = [
+            'total_titulos' => count($titulosCartao),
+            'total_documentos' => count(array_unique(array_column($titulosCartao, 'documento_titular'))),
+            'total_consultores' => count(array_unique(array_column($titulosCartao, 'promotor'))),
+            'consultores' => array_unique(array_column($titulosCartao, 'promotor')),
+            'inadimplentes' => count(array_filter($titulosCartao, function($t) {
+                return stripos($t['status_inadimplencia'], 'INADIMPLENTE') !== false;
+            })),
+            'bloqueados' => count(array_filter($titulosCartao, function($t) {
+                return $t['status_titulo'] === 'Bloqueado' || $t['status_titulo'] === 'Cancelado';
+            })),
+            'bandeira' => $titulosCartao[0]['bandeira'] ?? 'Desconhecido'
+        ];
+    } else {
+        // Buscar cartões com múltiplos usos
+        $cartoesMultiplos = $db->fetchAll("
+            SELECT
+                numero_cartao,
+                bandeira,
+                COUNT(*) as total_titulos,
+                COUNT(DISTINCT documento_titular) as total_documentos,
+                COUNT(DISTINCT promotor) as total_consultores,
+                GROUP_CONCAT(DISTINCT promotor SEPARATOR ', ') as consultores,
+                SUM(CASE WHEN status_inadimplencia LIKE 'INADIMPLENTE%' THEN 1 ELSE 0 END) as inadimplentes,
+                SUM(CASE WHEN status_titulo IN ('Bloqueado', 'Cancelado') THEN 1 ELSE 0 END) as bloqueados,
+                CASE
+                    WHEN bandeira LIKE '%DEBITO%' OR bandeira LIKE '%DEBIT%' THEN 'DÉBITO'
+                    WHEN bandeira LIKE '%CREDITO%' OR bandeira LIKE '%CREDIT%' THEN 'CRÉDITO'
+                    ELSE 'OUTRO'
+                END as tipo_cartao
+            FROM titulos
+            WHERE numero_cartao IS NOT NULL
+              AND numero_cartao != ''
+              AND numero_cartao != 'NULL'
+              {$wherePrefixos}
+            GROUP BY numero_cartao, bandeira
+            HAVING COUNT(*) >= 2
+            ORDER BY
+                CASE WHEN bandeira LIKE '%DEBITO%' OR bandeira LIKE '%DEBIT%' THEN 0 ELSE 1 END,
+                COUNT(*) DESC
+        ");
+    }
 ?>
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Cards - Resumo</title>
+    <title><?php echo $numeroCartao ? 'Detalhes do Cartão' : 'Cartões com Múltiplos Usos'; ?> - <?php echo SITE_NAME; ?></title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
 </head>
 <body>
-    <div class="container-fluid mt-3">
-        <!-- Estatísticas Principais -->
-        <div class="row mb-3">
-            <!-- Card 1: Total de Títulos -->
-            <div class="col-md-3">
-                <div class="card text-white bg-primary h-100">
-                    <div class="card-body">
-                        <h6 class="mb-3"><i class="bi bi-clipboard-data"></i> Total de Títulos</h6>
-                        <h3 class="mb-2"><?php echo number_format($stats['total'], 0, ',', '.'); ?></h3>
-                        <small>
-                            <i class="bi bi-check-circle"></i> <?php echo number_format($stats['titulos_ativos'], 0, ',', '.'); ?> Ativos<br>
-                            <i class="bi bi-lock"></i> <?php echo number_format($stats['titulos_bloqueados'], 0, ',', '.'); ?> Bloqueados<br>
-                            <i class="bi bi-x-circle"></i> <?php echo number_format($stats['titulos_cancelados'], 0, ',', '.'); ?> Cancelados
-                        </small>
+    <?php include 'navbar.php'; ?>
+
+    <div class="container-fluid mt-4">
+        <?php if ($numeroCartao): ?>
+            <!-- Detalhes de um cartão específico -->
+            <div class="row mb-4">
+                <div class="col-md-12">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h2><i class="bi bi-credit-card"></i> Detalhes do Cartão</h2>
+                            <p class="text-muted mb-0">
+                                <strong><?php echo sanitize($numeroCartao); ?></strong>
+                                <span class="badge bg-secondary"><?php echo $statsCartao['bandeira']; ?></span>
+                                <?php if (stripos($statsCartao['bandeira'], 'DEBITO') !== false): ?>
+                                    <span class="badge bg-danger">DÉBITO - ALTO RISCO</span>
+                                <?php endif; ?>
+                            </p>
+                        </div>
+                        <a href="relatorios.php?view=cartoes" class="btn btn-secondary">
+                            <i class="bi bi-arrow-left"></i> Voltar
+                        </a>
                     </div>
                 </div>
             </div>
 
-            <!-- Card 2: Inadimplentes -->
-            <div class="col-md-3">
-                <div class="card text-white bg-danger h-100">
-                    <div class="card-body">
-                        <h6 class="mb-3"><i class="bi bi-exclamation-triangle"></i> Inadimplentes</h6>
-                        <h3 class="mb-2"><?php echo number_format($stats['total_inadimplentes'], 0, ',', '.'); ?></h3>
-                        <small>
-                            Taxa: <?php echo formatPercentage($stats['total_inadimplentes'] * 100 / max($stats['total'], 1), 1); ?><br>
-                            <i class="bi bi-check-circle"></i> <?php echo number_format($stats['inadimplentes_ativos'], 0, ',', '.'); ?> Ativos<br>
-                            <i class="bi bi-lock"></i> <?php echo number_format($stats['inadimplentes_bloqueados'], 0, ',', '.'); ?> Bloqueados
-                        </small>
+            <!-- Estatísticas do Cartão -->
+            <div class="row mb-4">
+                <div class="col-md-3">
+                    <div class="card border-primary">
+                        <div class="card-body text-center">
+                            <h5 class="text-primary"><?php echo $statsCartao['total_titulos']; ?></h5>
+                            <small class="text-muted">Títulos Vendidos</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card border-info">
+                        <div class="card-body text-center">
+                            <h5 class="text-info"><?php echo $statsCartao['total_documentos']; ?></h5>
+                            <small class="text-muted">CPFs Diferentes</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card border-warning">
+                        <div class="card-body text-center">
+                            <h5 class="text-warning"><?php echo $statsCartao['total_consultores']; ?></h5>
+                            <small class="text-muted">Consultores</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card border-danger">
+                        <div class="card-body text-center">
+                            <h5 class="text-danger"><?php echo $statsCartao['inadimplentes']; ?></h5>
+                            <small class="text-muted">Inadimplentes</small>
+                        </div>
                     </div>
                 </div>
             </div>
 
-            <!-- Card 3: Valor Total Vendido -->
-            <div class="col-md-3">
-                <div class="card text-white bg-success h-100">
-                    <div class="card-body">
-                        <h6 class="mb-3"><i class="bi bi-cash-stack"></i> Valor Total</h6>
-                        <h4 class="mb-2"><?php echo formatCurrency($stats['valor_total_vendido'] ?? 0); ?></h4>
-                        <small>
-                            <i class="bi bi-check"></i> Recebido: <?php echo formatCurrency($stats['valor_total_recebido'] ?? 0); ?><br>
-                            <i class="bi bi-clock"></i> Restante: <?php echo formatCurrency($stats['valor_total_restante'] ?? 0); ?>
-                        </small>
+            <!-- Consultores que usaram -->
+            <div class="row mb-4">
+                <div class="col-md-12">
+                    <div class="card">
+                        <div class="card-header bg-warning">
+                            <h5><i class="bi bi-people"></i> Consultores que Utilizaram</h5>
+                        </div>
+                        <div class="card-body">
+                            <p><?php echo implode(', ', array_map('sanitize', $statsCartao['consultores'])); ?></p>
+                        </div>
                     </div>
                 </div>
             </div>
 
-            <!-- Card 4: Valor em Risco -->
-            <div class="col-md-3">
-                <div class="card text-white bg-dark h-100">
-                    <div class="card-body">
-                        <h6 class="mb-3"><i class="bi bi-shield-exclamation"></i> Valor em Risco</h6>
-                        <h4 class="mb-2"><?php echo formatCurrency($stats['valor_em_risco'] ?? 0); ?></h4>
-                        <small>
-                            Saldo restante apenas de inadimplentes<br>
-                            <?php
-                            $percRisco = $stats['valor_total_vendido'] > 0
-                                ? ($stats['valor_em_risco'] / $stats['valor_total_vendido']) * 100
-                                : 0;
-                            ?>
-                            <?php echo number_format($percRisco, 2, ',', '.'); ?>% do total vendido
-                        </small>
+            <!-- Lista de Títulos -->
+            <div class="row">
+                <div class="col-md-12">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5><i class="bi bi-list"></i> Todos os Títulos com este Cartão</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="table-responsive">
+                                <table class="table table-sm table-hover">
+                                    <thead>
+                                        <tr>
+                                            <th>Número Título</th>
+                                            <th>Cliente</th>
+                                            <th>CPF</th>
+                                            <th>Consultor</th>
+                                            <th>Status Título</th>
+                                            <th>Status Inadimp.</th>
+                                            <th>Parcelas</th>
+                                            <th>Data Venda</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <?php foreach ($titulosCartao as $titulo): ?>
+                                            <tr>
+                                                <td><?php echo sanitize($titulo['numero_titulo']); ?></td>
+                                                <td><?php echo sanitize($titulo['nome_titular']); ?></td>
+                                                <td><?php echo sanitize($titulo['documento_titular']); ?></td>
+                                                <td><?php echo sanitize($titulo['promotor']); ?></td>
+                                                <td>
+                                                    <span class="badge bg-<?php echo $titulo['status_titulo'] === 'Ativo' ? 'success' : 'danger'; ?>">
+                                                        <?php echo $titulo['status_titulo']; ?>
+                                                    </span>
+                                                </td>
+                                                <td>
+                                                    <?php
+                                                    $badge = InadimplenciaHelper::formatarStatusBadge($titulo['status_inadimplencia']);
+                                                    ?>
+                                                    <span class="badge bg-<?php echo $badge['class']; ?>">
+                                                        <?php echo sanitize($badge['text']); ?>
+                                                    </span>
+                                                </td>
+                                                <td><?php echo $titulo['qtd_parcelas_pagas']; ?>/<?php echo $titulo['quantidade_parcelas_venda']; ?></td>
+                                                <td><?php echo formatDate($titulo['data_primeira_venda']); ?></td>
+                                            </tr>
+                                        <?php endforeach; ?>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
-        </div>
+
+        <?php else: ?>
+            <!-- Lista de todos os cartões com múltiplos usos -->
+            <div class="row mb-4">
+                <div class="col-md-12">
+                    <h2><i class="bi bi-credit-card-2-front"></i> Cartões com Múltiplos Usos</h2>
+                    <p class="text-muted">Cartões usados em 2 ou mais títulos (indicador de risco)</p>
+                </div>
+            </div>
+
+            <div class="row">
+                <div class="col-md-12">
+                    <div class="card">
+                        <div class="card-body">
+                            <div class="table-responsive">
+                                <table class="table table-hover">
+                                    <thead>
+                                        <tr>
+                                            <th>Cartão</th>
+                                            <th>Bandeira</th>
+                                            <th>Tipo</th>
+                                            <th class="text-end">Títulos</th>
+                                            <th class="text-end">CPFs</th>
+                                            <th class="text-end">Consultores</th>
+                                            <th class="text-end">Inadimp.</th>
+                                            <th class="text-end">Bloq.</th>
+                                            <th>Consultores</th>
+                                            <th class="text-center">Ação</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <?php foreach ($cartoesMultiplos as $cartao): ?>
+                                            <tr <?php if ($cartao['tipo_cartao'] == 'DÉBITO'): ?>class="table-danger"<?php endif; ?>>
+                                                <td>
+                                                    <strong><?php echo sanitize($cartao['numero_cartao']); ?></strong>
+                                                    <?php if ($cartao['tipo_cartao'] == 'DÉBITO'): ?>
+                                                        <span class="badge bg-danger">DÉBITO</span>
+                                                    <?php endif; ?>
+                                                </td>
+                                                <td><?php echo sanitize($cartao['bandeira']); ?></td>
+                                                <td><?php echo $cartao['tipo_cartao']; ?></td>
+                                                <td class="text-end"><span class="badge bg-primary"><?php echo $cartao['total_titulos']; ?></span></td>
+                                                <td class="text-end"><?php echo $cartao['total_documentos']; ?></td>
+                                                <td class="text-end"><?php echo $cartao['total_consultores']; ?></td>
+                                                <td class="text-end">
+                                                    <?php if ($cartao['inadimplentes'] > 0): ?>
+                                                        <span class="badge bg-danger"><?php echo $cartao['inadimplentes']; ?></span>
+                                                    <?php else: ?>
+                                                        <span class="text-muted">0</span>
+                                                    <?php endif; ?>
+                                                </td>
+                                                <td class="text-end">
+                                                    <?php if ($cartao['bloqueados'] > 0): ?>
+                                                        <span class="badge bg-warning"><?php echo $cartao['bloqueados']; ?></span>
+                                                    <?php else: ?>
+                                                        <span class="text-muted">0</span>
+                                                    <?php endif; ?>
+                                                </td>
+                                                <td><small><?php echo sanitize(substr($cartao['consultores'], 0, 50)); ?><?php echo strlen($cartao['consultores']) > 50 ? '...' : ''; ?></small></td>
+                                                <td class="text-center">
+                                                    <a href="relatorios.php?view=cartoes&numero_cartao=<?php echo urlencode($cartao['numero_cartao']); ?>" class="btn btn-sm btn-outline-primary">
+                                                        <i class="bi bi-eye"></i> Detalhes
+                                                    </a>
+                                                </td>
+                                            </tr>
+                                        <?php endforeach; ?>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        <?php endif; ?>
     </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
 <?php
