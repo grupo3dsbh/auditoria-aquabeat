@@ -38,7 +38,43 @@ if ($ultimaImportacao) {
             "SELECT SUM(saldo_restante) FROM titulos WHERE importacao_id = ? AND status_inadimplencia LIKE 'INADIMPLENTE%' AND data_primeira_venda BETWEEN ? AND ?",
             [$importacaoId, $dataInicio . ' 00:00:00', $dataFim . ' 23:59:59']
         ) ?? 0,
-        'taxa_inadimplencia' => 0
+        'taxa_inadimplencia' => 0,
+
+        // ESTATÍSTICAS POR FORMA DE PAGAMENTO
+        'credito_ok' => $db->fetchColumn(
+            "SELECT COUNT(*) FROM titulos
+             WHERE importacao_id = ? AND data_primeira_venda BETWEEN ? AND ?
+             AND (bandeira_cartao LIKE '%CREDITO%' OR bandeira_cartao LIKE '%CREDIT%')
+             AND status_inadimplencia = 'ADIMPLENTE'",
+            [$importacaoId, $dataInicio . ' 00:00:00', $dataFim . ' 23:59:59']
+        ) ?? 0,
+        'credito_1a_parcela' => $db->fetchColumn(
+            "SELECT COUNT(*) FROM titulos
+             WHERE importacao_id = ? AND data_primeira_venda BETWEEN ? AND ?
+             AND (bandeira_cartao LIKE '%CREDITO%' OR bandeira_cartao LIKE '%CREDIT%')
+             AND status_inadimplencia LIKE '%1ª parcela%'",
+            [$importacaoId, $dataInicio . ' 00:00:00', $dataFim . ' 23:59:59']
+        ) ?? 0,
+        'debito_total' => $db->fetchColumn(
+            "SELECT COUNT(*) FROM titulos
+             WHERE importacao_id = ? AND data_primeira_venda BETWEEN ? AND ?
+             AND (bandeira_cartao LIKE '%DEBITO%' OR bandeira_cartao LIKE '%DEBIT%')",
+            [$importacaoId, $dataInicio . ' 00:00:00', $dataFim . ' 23:59:59']
+        ) ?? 0,
+        'pix_total' => $db->fetchColumn(
+            "SELECT COUNT(*) FROM titulos
+             WHERE importacao_id = ? AND data_primeira_venda BETWEEN ? AND ?
+             AND (bandeira_cartao LIKE '%PIX%' OR bandeira_cartao LIKE '%CARTEIRA%')",
+            [$importacaoId, $dataInicio . ' 00:00:00', $dataFim . ' 23:59:59']
+        ) ?? 0,
+        'outras_formas' => $db->fetchColumn(
+            "SELECT COUNT(*) FROM titulos
+             WHERE importacao_id = ? AND data_primeira_venda BETWEEN ? AND ?
+             AND bandeira_cartao NOT LIKE '%CREDITO%' AND bandeira_cartao NOT LIKE '%CREDIT%'
+             AND bandeira_cartao NOT LIKE '%DEBITO%' AND bandeira_cartao NOT LIKE '%DEBIT%'
+             AND bandeira_cartao NOT LIKE '%PIX%' AND bandeira_cartao NOT LIKE '%CARTEIRA%'",
+            [$importacaoId, $dataInicio . ' 00:00:00', $dataFim . ' 23:59:59']
+        ) ?? 0
     ];
 
     // Calcular taxa de inadimplência
@@ -74,6 +110,34 @@ if ($ultimaImportacao) {
         GROUP BY promotor
         HAVING COUNT(*) >= 3 AND total_inadimplentes > 0
         ORDER BY total_inadimplentes DESC, taxa_inadimplencia DESC
+        LIMIT 10
+    ", [$importacaoId, $dataInicio . ' 00:00:00', $dataFim . ' 23:59:59']);
+}
+
+// Top consultores de ALTO RISCO (usam débito/PIX e têm títulos bloqueados/poucas parcelas)
+$topConsultoresAltoRisco = [];
+if ($ultimaImportacao) {
+    $topConsultoresAltoRisco = $db->fetchAll("
+        SELECT
+            promotor,
+            COUNT(*) as total_vendas,
+            COUNT(CASE WHEN bandeira_cartao LIKE '%DEBITO%' OR bandeira_cartao LIKE '%DEBIT%' THEN 1 END) as vendas_debito,
+            COUNT(CASE WHEN bandeira_cartao LIKE '%PIX%' OR bandeira_cartao LIKE '%CARTEIRA%' THEN 1 END) as vendas_pix,
+            COUNT(CASE WHEN (bandeira_cartao LIKE '%DEBITO%' OR bandeira_cartao LIKE '%DEBIT%'
+                         OR bandeira_cartao LIKE '%PIX%' OR bandeira_cartao LIKE '%CARTEIRA%')
+                       AND (status_titulo IN ('Bloqueado', 'Cancelado') OR qtd_parcelas_pagas <= 2) THEN 1 END) as problemas_debito_pix,
+            COUNT(CASE WHEN status_titulo IN ('Bloqueado', 'Cancelado') THEN 1 END) as titulos_bloqueados,
+            COUNT(CASE WHEN qtd_parcelas_pagas = 1 THEN 1 END) as apenas_1a_parcela,
+            ROUND(COUNT(CASE WHEN (bandeira_cartao LIKE '%DEBITO%' OR bandeira_cartao LIKE '%DEBIT%'
+                               OR bandeira_cartao LIKE '%PIX%' OR bandeira_cartao LIKE '%CARTEIRA%')
+                           AND (status_titulo IN ('Bloqueado', 'Cancelado') OR qtd_parcelas_pagas <= 2) THEN 1 END) * 100.0 / COUNT(*), 2) as taxa_risco
+        FROM titulos
+        WHERE importacao_id = ?
+          AND data_primeira_venda BETWEEN ? AND ?
+          AND promotor IS NOT NULL
+        GROUP BY promotor
+        HAVING (vendas_debito > 0 OR vendas_pix > 0) AND problemas_debito_pix > 0
+        ORDER BY problemas_debito_pix DESC, taxa_risco DESC
         LIMIT 10
     ", [$importacaoId, $dataInicio . ' 00:00:00', $dataFim . ' 23:59:59']);
 }
@@ -192,6 +256,63 @@ if ($ultimaImportacao) {
                 </div>
             </div>
 
+            <!-- Cards de Formas de Pagamento -->
+            <div class="row mb-4">
+                <div class="col-md-12">
+                    <h5 class="text-muted mb-3"><i class="bi bi-credit-card-2-front"></i> Formas de Pagamento</h5>
+                </div>
+
+                <div class="col-md-2">
+                    <div class="card border-success">
+                        <div class="card-body text-center">
+                            <h6 class="card-title text-success"><i class="bi bi-credit-card"></i> Crédito OK</h6>
+                            <h4 class="text-success"><?php echo number_format($stats['credito_ok'], 0, ',', '.'); ?></h4>
+                            <small class="text-muted">Adimplentes</small>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-md-2">
+                    <div class="card border-warning">
+                        <div class="card-body text-center">
+                            <h6 class="card-title text-warning"><i class="bi bi-credit-card"></i> Créd. 1ª Parc.</h6>
+                            <h4 class="text-warning"><?php echo number_format($stats['credito_1a_parcela'], 0, ',', '.'); ?></h4>
+                            <small class="text-muted">Apenas 1 parcela</small>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-md-2">
+                    <div class="card border-danger">
+                        <div class="card-body text-center">
+                            <h6 class="card-title text-danger"><i class="bi bi-credit-card-2-front"></i> Débito</h6>
+                            <h4 class="text-danger"><?php echo number_format($stats['debito_total'], 0, ',', '.'); ?></h4>
+                            <small class="text-muted">Alto risco</small>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-md-2">
+                    <div class="card border-info">
+                        <div class="card-body text-center">
+                            <h6 class="card-title text-info"><i class="bi bi-wallet2"></i> PIX/Carteira</h6>
+                            <h4 class="text-info"><?php echo number_format($stats['pix_total'], 0, ',', '.'); ?></h4>
+                            <small class="text-muted">Digital</small>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-md-2">
+                    <div class="card border-secondary">
+                        <div class="card-body text-center">
+                            <h6 class="card-title text-secondary"><i class="bi bi-three-dots"></i> Outras</h6>
+                            <h4 class="text-secondary"><?php echo number_format($stats['outras_formas'], 0, ',', '.'); ?></h4>
+                            <small class="text-muted">Formas diversas</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <div class="row">
                 <!-- Top Consultores com Maior Inadimplência -->
                 <div class="col-md-6">
@@ -293,6 +414,85 @@ if ($ultimaImportacao) {
                                 <a href="relatorios.php?view=cartoes" class="btn btn-sm btn-outline-primary">
                                     Ver Todos <i class="bi bi-arrow-right"></i>
                                 </a>
+                            <?php endif; ?>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Top 10 Consultores de Alto Risco (Débito/PIX) -->
+            <div class="row mt-4">
+                <div class="col-md-12">
+                    <div class="card border-danger">
+                        <div class="card-header bg-danger text-white">
+                            <h5><i class="bi bi-exclamation-octagon"></i> Top 10 Consultores de Alto Risco (Débito/PIX)</h5>
+                            <small>Consultores que usam débito/PIX com títulos bloqueados ou poucas parcelas pagas</small>
+                        </div>
+                        <div class="card-body">
+                            <?php if (empty($topConsultoresAltoRisco)): ?>
+                                <p class="text-muted">Nenhum consultor de alto risco identificado.</p>
+                            <?php else: ?>
+                                <div class="table-responsive">
+                                    <table class="table table-sm table-hover">
+                                        <thead>
+                                            <tr>
+                                                <th>#</th>
+                                                <th>Consultor</th>
+                                                <th class="text-end">Vendas</th>
+                                                <th class="text-end">Débito</th>
+                                                <th class="text-end">PIX</th>
+                                                <th class="text-end">Problemas</th>
+                                                <th class="text-end">Bloqueados</th>
+                                                <th class="text-end">Taxa Risco</th>
+                                                <th class="text-center">Ação</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <?php $rank = 1; foreach ($topConsultoresAltoRisco as $consultor): ?>
+                                                <tr>
+                                                    <td><?php echo $rank++; ?></td>
+                                                    <td>
+                                                        <strong><?php echo sanitize($consultor['promotor']); ?></strong>
+                                                    </td>
+                                                    <td class="text-end"><?php echo $consultor['total_vendas']; ?></td>
+                                                    <td class="text-end">
+                                                        <?php if ($consultor['vendas_debito'] > 0): ?>
+                                                            <span class="badge bg-danger"><?php echo $consultor['vendas_debito']; ?></span>
+                                                        <?php else: ?>
+                                                            <span class="text-muted">-</span>
+                                                        <?php endif; ?>
+                                                    </td>
+                                                    <td class="text-end">
+                                                        <?php if ($consultor['vendas_pix'] > 0): ?>
+                                                            <span class="badge bg-info"><?php echo $consultor['vendas_pix']; ?></span>
+                                                        <?php else: ?>
+                                                            <span class="text-muted">-</span>
+                                                        <?php endif; ?>
+                                                    </td>
+                                                    <td class="text-end">
+                                                        <span class="badge bg-warning"><?php echo $consultor['problemas_debito_pix']; ?></span>
+                                                    </td>
+                                                    <td class="text-end"><?php echo $consultor['titulos_bloqueados']; ?></td>
+                                                    <td class="text-end">
+                                                        <strong class="text-danger"><?php echo formatPercentage($consultor['taxa_risco'], 1); ?></strong>
+                                                    </td>
+                                                    <td class="text-center">
+                                                        <a href="analise_consultor.php?promotor=<?php echo urlencode($consultor['promotor']); ?>"
+                                                           class="btn btn-sm btn-outline-primary"
+                                                           title="Análise Inteligente (IA)">
+                                                            <i class="bi bi-robot"></i> Analisar
+                                                        </a>
+                                                    </td>
+                                                </tr>
+                                            <?php endforeach; ?>
+                                        </tbody>
+                                    </table>
+                                </div>
+                                <div class="alert alert-info mt-3">
+                                    <i class="bi bi-info-circle"></i> <strong>Sobre este ranking:</strong>
+                                    Consultores que usaram cartão de débito ou PIX em vendas que resultaram em títulos bloqueados ou com apenas 1-2 parcelas pagas.
+                                    Click em "Analisar" para receber sugestões de IA sobre como abordar profissionalmente cada caso.
+                                </div>
                             <?php endif; ?>
                         </div>
                     </div>
