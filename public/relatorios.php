@@ -481,8 +481,7 @@ if ($viewCartoes):
                     WHEN MAX(CASE WHEN bandeira LIKE '%DEBITO%' OR bandeira LIKE '%DEBIT%' THEN 1 ELSE 0 END) = 1 THEN 'DÉBITO'
                     WHEN MAX(CASE WHEN bandeira LIKE '%CREDITO%' OR bandeira LIKE '%CREDIT%' THEN 1 ELSE 0 END) = 1 THEN 'CRÉDITO'
                     ELSE 'OUTRO'
-                END as tipo_principal,
-                MAX(CASE WHEN bandeira LIKE '%DEBITO%' OR bandeira LIKE '%DEBIT%' THEN 1 ELSE 0 END) as tem_debito
+                END as tipo_principal
             FROM titulos
             WHERE numero_cartao IS NOT NULL
               AND numero_cartao != ''
@@ -492,7 +491,7 @@ if ($viewCartoes):
             GROUP BY numero_cartao
             HAVING COUNT(*) >= 2
             ORDER BY
-                tem_debito DESC,
+                MAX(CASE WHEN bandeira LIKE '%DEBITO%' OR bandeira LIKE '%DEBIT%' THEN 1 ELSE 0 END) DESC,
                 {$orderBy}
         ", $paramsPesquisa);
 
@@ -507,12 +506,13 @@ if ($viewCartoes):
             'total_cancelados' => array_sum(array_column($cartoesMultiplos, 'cancelados'))
         ];
 
-        // Top 3 Consultores com mais cartões e alta inadimplência/bloqueio
-        // IMPORTANTE: Considerar apenas CARTÕES COM MÚLTIPLOS USOS (2+ títulos no mesmo cartão)
+        // Top 3 Consultores - MESMO CARTÃO usado para MÚLTIPLOS CLIENTES (indicador de irregularidade)
+        // IMPORTANTE: Detectar consultores que usaram o MESMO CARTÃO para VÁRIOS CPFs diferentes
         $top3Consultores = $db->fetchAll("
             SELECT
                 promotor,
-                COUNT(DISTINCT numero_cartao) as total_cartoes_unicos,
+                numero_cartao,
+                COUNT(DISTINCT documento_titular) as cpfs_diferentes,
                 COUNT(*) as total_titulos,
                 SUM(CASE WHEN status_inadimplencia LIKE 'INADIMPLENTE%' THEN 1 ELSE 0 END) as inadimplentes,
                 SUM(CASE WHEN status_titulo IN ('Bloqueado', 'Cancelado') THEN 1 ELSE 0 END) as bloqueados,
@@ -523,21 +523,9 @@ if ($viewCartoes):
               AND numero_cartao != ''
               AND numero_cartao != 'NULL'
               {$wherePrefixos}
-              AND numero_cartao IN (
-                  -- Subconsulta: apenas cartões usados 2+ vezes
-                  SELECT numero_cartao
-                  FROM titulos
-                  WHERE numero_cartao IS NOT NULL
-                    AND numero_cartao != ''
-                    AND numero_cartao != 'NULL'
-                    {$wherePrefixos}
-                  GROUP BY numero_cartao
-                  HAVING COUNT(*) >= 2
-              )
-            GROUP BY promotor
-            HAVING COUNT(DISTINCT numero_cartao) >= 2
-              AND (taxa_inadimplencia >= 30 OR taxa_bloqueio >= 20)
-            ORDER BY total_cartoes_unicos DESC, taxa_inadimplencia DESC
+            GROUP BY promotor, numero_cartao
+            HAVING COUNT(DISTINCT documento_titular) >= 3
+            ORDER BY cpfs_diferentes DESC, taxa_inadimplencia DESC
             LIMIT 3
         ");
     }
@@ -662,6 +650,27 @@ if ($viewCartoes):
                     </div>
                 </div>
             </div>
+
+            <!-- Análise com IA -->
+            <?php if (getConfig('api_ia_key')): ?>
+            <div class="row mb-4">
+                <div class="col-md-12">
+                    <div class="card border-info">
+                        <div class="card-header bg-info text-white d-flex justify-content-between align-items-center">
+                            <h5 class="mb-0"><i class="bi bi-robot"></i> Análise Inteligente do Cartão</h5>
+                        </div>
+                        <div class="card-body">
+                            <div id="iaResumoCartao">
+                                <p class="text-muted mb-3">Gere uma análise completa deste cartão com sugestões de ação.</p>
+                                <button class="btn btn-info" onclick="gerarResumoIACartao('<?php echo sanitize($numeroCartao); ?>')">
+                                    <i class="bi bi-magic"></i> Gerar Análise com IA
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <?php endif; ?>
 
             <!-- Lista de Títulos -->
             <div class="row">
@@ -795,7 +804,7 @@ if ($viewCartoes):
                 <div class="col-md-12">
                     <div class="card border-warning">
                         <div class="card-header bg-warning text-dark">
-                            <h5><i class="bi bi-exclamation-triangle-fill"></i> Top 3 Consultores - Alto Risco (Múltiplos Cartões + Alta Inadimplência/Bloqueio)</h5>
+                            <h5><i class="bi bi-exclamation-triangle-fill"></i> Top 3 Consultores - MESMO Cartão para MÚLTIPLOS Clientes (Irregularidade Detectada)</h5>
                         </div>
                         <div class="card-body">
                             <div class="row">
@@ -805,11 +814,11 @@ if ($viewCartoes):
                                         <div class="card-body">
                                             <div class="d-flex align-items-start mb-2">
                                                 <div class="me-2">
-                                                    <i class="bi <?php echo $idx === 0 ? 'bi-trophy-fill' : ($idx === 1 ? 'bi-award-fill' : 'bi-star-fill'); ?>" style="font-size: 2rem;"></i>
+                                                    <i class="bi <?php echo $idx === 0 ? 'bi-skull' : ($idx === 1 ? 'bi-exclamation-triangle-fill' : 'bi-exclamation-octagon-fill'); ?>" style="font-size: 2rem;"></i>
                                                 </div>
                                                 <div class="flex-grow-1">
                                                     <h6 class="card-title mb-0 <?php echo $idx === 0 ? 'text-white' : 'text-dark'; ?>">
-                                                        <strong><?php echo ($idx + 1); ?>º Lugar</strong>
+                                                        <strong><?php echo ($idx + 1); ?>º Mais Crítico</strong>
                                                     </h6>
                                                     <p class="mb-2 <?php echo $idx === 0 ? 'text-white' : 'text-dark'; ?>">
                                                         <strong><?php echo sanitize($consultor['promotor']); ?></strong>
@@ -817,12 +826,13 @@ if ($viewCartoes):
                                                 </div>
                                             </div>
                                             <hr class="<?php echo $idx === 0 ? 'bg-white' : 'bg-dark'; ?>" style="opacity: 0.3;">
-                                            <ul class="list-unstyled mb-0 <?php echo $idx === 0 ? 'text-white' : 'text-dark'; ?>">
-                                                <li><i class="bi bi-credit-card-2-front"></i> <strong><?php echo $consultor['total_cartoes_unicos']; ?></strong> cartões diferentes</li>
-                                                <li><i class="bi bi-receipt"></i> <strong><?php echo $consultor['total_titulos']; ?></strong> títulos vendidos</li>
-                                                <li><i class="bi bi-exclamation-circle-fill"></i> <strong><?php echo $consultor['taxa_inadimplencia']; ?>%</strong> inadimplência</li>
-                                                <li><i class="bi bi-x-circle-fill"></i> <strong><?php echo $consultor['taxa_bloqueio']; ?>%</strong> bloqueio</li>
-                                            </ul>
+                                            <div class="<?php echo $idx === 0 ? 'text-white' : 'text-dark'; ?>">
+                                                <p class="mb-2"><i class="bi bi-credit-card"></i> <strong>Cartão:</strong> <?php echo sanitize($consultor['numero_cartao']); ?></p>
+                                                <p class="mb-2"><i class="bi bi-person-fill-exclamation"></i> <strong><?php echo $consultor['cpfs_diferentes']; ?></strong> clientes diferentes</p>
+                                                <p class="mb-2"><i class="bi bi-file-earmark-text"></i> <strong><?php echo $consultor['total_titulos']; ?></strong> títulos vendidos</p>
+                                                <p class="mb-2"><i class="bi bi-exclamation-circle-fill"></i> <strong><?php echo $consultor['taxa_inadimplencia']; ?>%</strong> inadimplência</p>
+                                                <p class="mb-0"><i class="bi bi-x-circle-fill"></i> <strong><?php echo $consultor['taxa_bloqueio']; ?>%</strong> bloqueio</p>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
@@ -963,6 +973,43 @@ if ($viewCartoes):
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Gerar resumo com IA para cartão específico
+        function gerarResumoIACartao(numeroCartao) {
+            const btn = event.target;
+            const originalHTML = btn.innerHTML;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Gerando...';
+            btn.disabled = true;
+
+            fetch('api/gerar_resumo_cartao_ia.php?numero_cartao=' + encodeURIComponent(numeroCartao))
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('HTTP error! status: ' + response.status);
+                    }
+                    const contentType = response.headers.get("content-type");
+                    if (!contentType || !contentType.includes("application/json")) {
+                        throw new Error('Resposta não é JSON! Content-Type: ' + contentType);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    if (data.success) {
+                        const resumoFormatado = data.resumo.replace(/\n/g, '<br>').replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+                        document.getElementById('iaResumoCartao').innerHTML = '<div class="alert alert-light">' + resumoFormatado + '</div>';
+                    } else {
+                        alert('Erro ao gerar resumo: ' + (data.error || 'Erro desconhecido'));
+                        btn.innerHTML = originalHTML;
+                        btn.disabled = false;
+                    }
+                })
+                .catch(error => {
+                    console.error('Erro completo:', error);
+                    alert('Erro ao gerar resumo: ' + error.message + '\n\nVerifique o console do navegador para mais detalhes.');
+                    btn.innerHTML = originalHTML;
+                    btn.disabled = false;
+                });
+        }
+    </script>
 </body>
 </html>
 <?php
