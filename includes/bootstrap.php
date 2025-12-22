@@ -61,6 +61,23 @@ if (DEBUG_MODE) {
     ini_set('display_errors', '0');
 }
 
+// Verificar modo de depuração do sistema (configurável pelo admin)
+// Esta configuração sobrescreve DEBUG_MODE se estiver ativa
+try {
+    $modoDebug = getConfig('modo_debug', '0');
+    if ($modoDebug == '1') {
+        error_reporting(E_ALL);
+        ini_set('display_errors', '1');
+        ini_set('display_startup_errors', '1');
+        define('SISTEMA_DEBUG_MODE', true);
+    } else {
+        define('SISTEMA_DEBUG_MODE', false);
+    }
+} catch (Exception $e) {
+    // Banco ainda não configurado, ignora
+    define('SISTEMA_DEBUG_MODE', false);
+}
+
 // Carregar classes
 require_once __DIR__ . '/Logger.php';
 require_once __DIR__ . '/Database.php';

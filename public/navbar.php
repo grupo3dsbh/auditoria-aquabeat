@@ -66,3 +66,22 @@
         </div>
     </div>
 </nav>
+
+<?php if (defined('SISTEMA_DEBUG_MODE') && SISTEMA_DEBUG_MODE === true): ?>
+<div class="alert alert-warning mb-0 rounded-0 border-0" role="alert" style="border-bottom: 3px solid #ff9800 !important;">
+    <div class="container-fluid">
+        <div class="row align-items-center">
+            <div class="col-auto">
+                <i class="bi bi-exclamation-triangle-fill" style="font-size: 1.5rem;"></i>
+            </div>
+            <div class="col">
+                <strong>MODO DE DESENVOLVIMENTO ATIVADO</strong>
+                <p class="mb-0 small">
+                    Erros PHP estão sendo exibidos. Este modo deve ser desativado em produção.
+                    <a href="<?php echo url('admin/configuracoes.php'); ?>" class="alert-link">Desativar nas Configurações</a>
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+<?php endif; ?>

@@ -26,7 +26,8 @@ $configs = [
     'nome_empresa' => getConfig('nome_empresa', 'Aquabeat Auditoria'),
     'api_ia_provider' => getConfig('api_ia_provider', 'groq'),
     'api_ia_key' => getConfig('api_ia_key', ''),
-    'registros_por_pagina' => getConfig('registros_por_pagina', '50')
+    'registros_por_pagina' => getConfig('registros_por_pagina', '50'),
+    'modo_debug' => getConfig('modo_debug', '0')
 ];
 ?>
 <!DOCTYPE html>
@@ -89,6 +90,25 @@ $configs = [
                     <div class="mb-3">
                         <label class="form-label">Registros por Página</label>
                         <input type="number" name="registros_por_pagina" class="form-control" value="<?php echo $configs['registros_por_pagina']; ?>">
+                    </div>
+
+                    <hr>
+
+                    <h5>Desenvolvimento</h5>
+
+                    <div class="mb-3">
+                        <div class="form-check form-switch">
+                            <input type="hidden" name="modo_debug" value="0">
+                            <input class="form-check-input" type="checkbox" role="switch" id="modoDebug" name="modo_debug" value="1" <?php echo $configs['modo_debug'] == '1' ? 'checked' : ''; ?>>
+                            <label class="form-check-label" for="modoDebug">
+                                <strong>Modo de Depuração</strong>
+                            </label>
+                        </div>
+                        <small class="text-muted">
+                            <i class="bi bi-exclamation-triangle text-warning"></i>
+                            Quando ativado, exibe erros PHP em todas as páginas e mostra uma tarja de desenvolvimento.
+                            <strong class="text-danger">NÃO use em produção!</strong>
+                        </small>
                     </div>
 
                     <button type="submit" name="submit" class="btn btn-primary">
