@@ -16,24 +16,25 @@ if (!$ultimaImportacao) {
 
 $importacaoId = $ultimaImportacao['id'];
 
+// Calcular data fim padrão: último dia de 2 meses antes do mês atual
+$dataFimPadrao = date('Y-m-t', strtotime('-2 months'));
+
 // Filtros
 $filtros = [];
 $where = ["importacao_id = ?"];
 $params = [$importacaoId];
 
 // Filtro padrão: Data desde 01/11/2024
-$dataInicio = !empty($_GET['data_inicio']) ? $_GET['data_inicio'] : date('Y-m-01', strtotime('-2 months'));
-$dataFim = !empty($_GET['data_fim']) ? $_GET['data_fim'] : date('Y-m-d');
+$dataInicio = !empty($_GET['data_inicio']) ? $_GET['data_inicio'] : '2024-11-01';
+$dataFim = !empty($_GET['data_fim']) ? $_GET['data_fim'] : $dataFimPadrao;
 
 $where[] = "data_primeira_venda >= ?";
 $params[] = $dataInicio . ' 00:00:00';
 $filtros['data_inicio'] = $dataInicio;
 
-if (!empty($_GET['data_fim'])) {
-    $where[] = "data_primeira_venda <= ?";
-    $params[] = $dataFim . ' 23:59:59';
-    $filtros['data_fim'] = $dataFim;
-}
+$where[] = "data_primeira_venda <= ?";
+$params[] = $dataFim . ' 23:59:59';
+$filtros['data_fim'] = $dataFim;
 
 // Filtro por prefixo do título (padrão: SBF, SFA)
 $prefixos = !empty($_GET['prefixos']) ? $_GET['prefixos'] : ['SBF', 'SFA'];
@@ -64,8 +65,8 @@ if (!empty($_GET['status_inadimplencia'])) {
 }
 
 if (!empty($_GET['promotor'])) {
-    $where[] = "promotor LIKE ?";
-    $params[] = '%' . $_GET['promotor'] . '%';
+    $where[] = "promotor = ?";
+    $params[] = $_GET['promotor'];
     $filtros['promotor'] = $_GET['promotor'];
 }
 
@@ -86,6 +87,12 @@ if (!empty($_GET['apenas_1parcela']) && $_GET['apenas_1parcela'] == '1') {
     $filtros['apenas_1parcela'] = '1';
 }
 
+// Ordenação
+$orderBy = !empty($_GET['order_by']) ? $_GET['order_by'] : 'data_primeira_venda';
+$orderDir = !empty($_GET['order_dir']) && $_GET['order_dir'] == 'ASC' ? 'ASC' : 'DESC';
+$filtros['order_by'] = $orderBy;
+$filtros['order_dir'] = $orderDir;
+
 // Paginação
 $page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
 $perPage = RECORDS_PER_PAGE;
@@ -98,7 +105,7 @@ $total = $db->fetchColumn($totalSql, $params);
 // Buscar registros
 $sql = "SELECT * FROM titulos
         WHERE " . implode(' AND ', $where) . "
-        ORDER BY data_primeira_venda DESC
+        ORDER BY {$orderBy} {$orderDir}
         LIMIT ? OFFSET ?";
 
 $params[] = $perPage;
@@ -106,7 +113,7 @@ $params[] = $offset;
 
 $titulos = $db->fetchAll($sql, $params);
 
-// Estatísticas
+// Estatísticas gerais
 $stats = $db->fetchOne("
     SELECT
         COUNT(*) as total,
@@ -117,8 +124,63 @@ $stats = $db->fetchOne("
     array_slice($params, 0, count($params) - 2)
 );
 
+// Análise por tipo de inadimplência
+$inadimplenciaPorTipo = $db->fetchAll("
+    SELECT
+        status_inadimplencia,
+        COUNT(*) as total,
+        SUM(saldo_restante) as valor_risco,
+        ROUND(COUNT(*) * 100.0 / (SELECT COUNT(*) FROM titulos WHERE " . implode(' AND ', $where) . "), 2) as percentual
+    FROM titulos
+    WHERE " . implode(' AND ', $where) . "
+      AND status_inadimplencia LIKE 'INADIMPLENTE%'
+    GROUP BY status_inadimplencia
+    ORDER BY total DESC",
+    array_slice($params, 0, count($params) - 2)
+);
+
+// Ranking de consultores com mais inadimplência
+$rankingConsultores = $db->fetchAll("
+    SELECT
+        promotor,
+        COUNT(*) as total_vendas,
+        COUNT(CASE WHEN status_inadimplencia LIKE 'INADIMPLENTE%' THEN 1 END) as inadimplentes,
+        COUNT(CASE WHEN status_inadimplencia = 'INADIMPLENTE - Apenas 1ª Parcela' THEN 1 END) as apenas_1parcela,
+        SUM(CASE WHEN status_inadimplencia LIKE 'INADIMPLENTE%' THEN saldo_restante ELSE 0 END) as valor_risco,
+        ROUND(COUNT(CASE WHEN status_inadimplencia LIKE 'INADIMPLENTE%' THEN 1 END) * 100.0 / COUNT(*), 2) as taxa_inadimplencia
+    FROM titulos
+    WHERE " . implode(' AND ', $where) . "
+      AND promotor IS NOT NULL
+    GROUP BY promotor
+    HAVING inadimplentes > 0
+    ORDER BY inadimplentes DESC
+    LIMIT 10",
+    array_slice($params, 0, count($params) - 2)
+);
+
+// Títulos bloqueados/cancelados em até 30 dias ou a partir do 2º mês
+$titulosProblematicos = $db->fetchAll("
+    SELECT *
+    FROM titulos
+    WHERE " . implode(' AND ', $where) . "
+      AND (
+          (status_titulo IN ('Bloqueado', 'Cancelado') AND dias_desde_venda <= 30)
+          OR
+          (status_inadimplencia = 'INADIMPLENTE - Apenas 1ª Parcela' AND dias_desde_venda >= 60)
+      )
+    ORDER BY dias_desde_venda DESC
+    LIMIT 20",
+    array_slice($params, 0, count($params) - 2)
+);
+
 // Buscar lista de promotores para autocomplete
-$promotores = $db->fetchAll("SELECT DISTINCT promotor FROM titulos WHERE promotor IS NOT NULL AND importacao_id = ? ORDER BY promotor", [$importacaoId]);
+$promotores = $db->fetchAll("
+    SELECT DISTINCT promotor
+    FROM titulos
+    WHERE promotor IS NOT NULL AND importacao_id = ?
+    ORDER BY promotor",
+    [$importacaoId]
+);
 ?>
 <!DOCTYPE html>
 <html lang="pt-BR">
@@ -128,12 +190,52 @@ $promotores = $db->fetchAll("SELECT DISTINCT promotor FROM titulos WHERE promoto
     <title>Relatórios - <?php echo SITE_NAME; ?></title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+    <link href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css" rel="stylesheet" />
     <style>
         @media print {
             .navbar, .card-header button, .btn, form, .pagination { display: none !important; }
             .card { border: none !important; box-shadow: none !important; }
             body { font-size: 10pt; }
             table { font-size: 9pt; }
+        }
+
+        /* Cores por tipo de inadimplência */
+        .inadimplente-1parcela {
+            background-color: #ffebee !important;
+        }
+        .inadimplente-2parcelas {
+            background-color: #ffe0b2 !important;
+        }
+        .inadimplente-menos50 {
+            background-color: #fff9c4 !important;
+        }
+        .inadimplente-mais50 {
+            background-color: #ffcdd2 !important;
+        }
+        .adimplente {
+            background-color: #e8f5e9 !important;
+        }
+
+        /* Hover mantém a cor */
+        .table-hover tbody tr.inadimplente-1parcela:hover {
+            background-color: #ffcdd2 !important;
+        }
+        .table-hover tbody tr.inadimplente-2parcelas:hover {
+            background-color: #ffcc80 !important;
+        }
+        .table-hover tbody tr.inadimplente-menos50:hover {
+            background-color: #fff59d !important;
+        }
+        .table-hover tbody tr.inadimplente-mais50:hover {
+            background-color: #ef9a9a !important;
+        }
+        .table-hover tbody tr.adimplente:hover {
+            background-color: #c8e6c9 !important;
+        }
+
+        .cursor-pointer {
+            cursor: pointer;
         }
     </style>
 </head>
@@ -144,7 +246,7 @@ $promotores = $db->fetchAll("SELECT DISTINCT promotor FROM titulos WHERE promoto
         <h2><i class="bi bi-file-earmark-bar-graph"></i> Relatórios de Inadimplência</h2>
         <p class="text-muted">Importação: <?php echo sanitize($ultimaImportacao['nome_arquivo']); ?> - <?php echo formatDateTime($ultimaImportacao['concluido_em']); ?></p>
 
-        <!-- Estatísticas -->
+        <!-- Estatísticas Principais -->
         <div class="row mb-4">
             <div class="col-md-4">
                 <div class="card text-white bg-primary">
@@ -173,6 +275,164 @@ $promotores = $db->fetchAll("SELECT DISTINCT promotor FROM titulos WHERE promoto
             </div>
         </div>
 
+        <!-- Resumo de IA -->
+        <?php if (getConfig('api_ia_key')): ?>
+        <div class="card mb-4 border-info">
+            <div class="card-header bg-info text-white">
+                <h5 class="mb-0"><i class="bi bi-robot"></i> Resumo Gerado por IA</h5>
+            </div>
+            <div class="card-body">
+                <div id="iaResumo">
+                    <div class="text-center">
+                        <button class="btn btn-info" onclick="gerarResumoIA()">
+                            <i class="bi bi-magic"></i> Gerar Análise com IA
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <?php endif; ?>
+
+        <!-- Análise Detalhada -->
+        <div class="row mb-4">
+            <!-- Inadimplência por Tipo -->
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header bg-warning">
+                        <h6 class="mb-0"><i class="bi bi-pie-chart"></i> Inadimplência por Tipo</h6>
+                    </div>
+                    <div class="card-body">
+                        <?php if (empty($inadimplenciaPorTipo)): ?>
+                            <p class="text-muted">Nenhum inadimplente no período.</p>
+                        <?php else: ?>
+                            <table class="table table-sm">
+                                <thead>
+                                    <tr>
+                                        <th>Tipo</th>
+                                        <th class="text-end">Qtd</th>
+                                        <th class="text-end">%</th>
+                                        <th class="text-end">Valor Risco</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <?php foreach ($inadimplenciaPorTipo as $tipo): ?>
+                                        <tr>
+                                            <td>
+                                                <small><?php echo sanitize($tipo['status_inadimplencia']); ?></small>
+                                            </td>
+                                            <td class="text-end"><?php echo number_format($tipo['total'], 0, ',', '.'); ?></td>
+                                            <td class="text-end"><?php echo number_format($tipo['percentual'], 1); ?>%</td>
+                                            <td class="text-end"><small><?php echo formatCurrency($tipo['valor_risco'] ?? 0); ?></small></td>
+                                        </tr>
+                                    <?php endforeach; ?>
+                                </tbody>
+                            </table>
+                        <?php endif; ?>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Ranking de Consultores -->
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header bg-danger text-white">
+                        <h6 class="mb-0"><i class="bi bi-trophy"></i> Top 10 Consultores com Inadimplência</h6>
+                    </div>
+                    <div class="card-body">
+                        <?php if (empty($rankingConsultores)): ?>
+                            <p class="text-muted">Nenhum dado disponível.</p>
+                        <?php else: ?>
+                            <table class="table table-sm">
+                                <thead>
+                                    <tr>
+                                        <th>#</th>
+                                        <th>Consultor</th>
+                                        <th class="text-end">Inadimp.</th>
+                                        <th class="text-end">Taxa</th>
+                                        <th class="text-end">1ª Parc.</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <?php foreach ($rankingConsultores as $index => $consultor): ?>
+                                        <tr>
+                                            <td><?php echo $index + 1; ?></td>
+                                            <td>
+                                                <small>
+                                                    <a href="?promotor=<?php echo urlencode($consultor['promotor']); ?>" class="text-decoration-none">
+                                                        <?php echo sanitize($consultor['promotor']); ?>
+                                                    </a>
+                                                </small>
+                                            </td>
+                                            <td class="text-end">
+                                                <span class="badge bg-danger">
+                                                    <?php echo $consultor['inadimplentes']; ?>/<?php echo $consultor['total_vendas']; ?>
+                                                </span>
+                                            </td>
+                                            <td class="text-end"><?php echo number_format($consultor['taxa_inadimplencia'], 1); ?>%</td>
+                                            <td class="text-end">
+                                                <?php if ($consultor['apenas_1parcela'] > 0): ?>
+                                                    <span class="badge bg-warning text-dark"><?php echo $consultor['apenas_1parcela']; ?></span>
+                                                <?php else: ?>
+                                                    <span class="text-muted">-</span>
+                                                <?php endif; ?>
+                                            </td>
+                                        </tr>
+                                    <?php endforeach; ?>
+                                </tbody>
+                            </table>
+                        <?php endif; ?>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Títulos Problemáticos -->
+        <?php if (!empty($titulosProblematicos)): ?>
+        <div class="card mb-4 border-danger">
+            <div class="card-header bg-danger text-white">
+                <h6 class="mb-0">
+                    <i class="bi bi-exclamation-triangle"></i>
+                    Títulos para Atenção Especial
+                    <small>(Bloqueados/Cancelados em 30 dias OU Apenas 1ª parcela há 60+ dias)</small>
+                </h6>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover">
+                        <thead>
+                            <tr>
+                                <th>Título</th>
+                                <th>Titular</th>
+                                <th>Consultor</th>
+                                <th>Status</th>
+                                <th>Dias</th>
+                                <th>Inadimplência</th>
+                                <th class="text-end">Risco</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php foreach ($titulosProblematicos as $titulo): ?>
+                                <tr>
+                                    <td><small><?php echo sanitize($titulo['numero_titulo']); ?></small></td>
+                                    <td><small><?php echo sanitize($titulo['nome_titular']); ?></small></td>
+                                    <td><small><?php echo sanitize($titulo['promotor']); ?></small></td>
+                                    <td>
+                                        <span class="badge bg-<?php echo getStatusBadgeClass($titulo['status_titulo']); ?>">
+                                            <?php echo $titulo['status_titulo']; ?>
+                                        </span>
+                                    </td>
+                                    <td><?php echo $titulo['dias_desde_venda']; ?> dias</td>
+                                    <td><small><?php echo $titulo['status_inadimplencia']; ?></small></td>
+                                    <td class="text-end"><small><?php echo formatCurrency($titulo['saldo_restante'] ?? 0); ?></small></td>
+                                </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        <?php endif; ?>
+
         <!-- Filtros -->
         <div class="card mb-4">
             <div class="card-header d-flex justify-content-between align-items-center">
@@ -185,19 +445,19 @@ $promotores = $db->fetchAll("SELECT DISTINCT promotor FROM titulos WHERE promoto
                 <form method="GET" class="row g-3" id="filterForm">
                     <div class="col-md-3">
                         <label class="form-label">Data Início</label>
-                        <input type="date" name="data_inicio" class="form-control" value="<?php echo sanitize($filtros['data_inicio'] ?? ''); ?>">
+                        <input type="date" name="data_inicio" class="form-control" value="<?php echo sanitize($filtros['data_inicio']); ?>">
                     </div>
 
                     <div class="col-md-3">
                         <label class="form-label">Data Fim</label>
-                        <input type="date" name="data_fim" class="form-control" value="<?php echo sanitize($filtros['data_fim'] ?? ''); ?>">
+                        <input type="date" name="data_fim" class="form-control" value="<?php echo sanitize($filtros['data_fim']); ?>">
                     </div>
 
                     <div class="col-md-3">
                         <label class="form-label">Prefixo do Título</label>
                         <select name="prefixos[]" class="form-select" multiple size="1">
-                            <option value="SBF" <?php echo in_array('SBF', $filtros['prefixos'] ?? ['SBF', 'SFA']) ? 'selected' : ''; ?>>SBF</option>
-                            <option value="SFA" <?php echo in_array('SFA', $filtros['prefixos'] ?? ['SBF', 'SFA']) ? 'selected' : ''; ?>>SFA</option>
+                            <option value="SBF" <?php echo in_array('SBF', $filtros['prefixos'] ?? []) ? 'selected' : ''; ?>>SBF</option>
+                            <option value="SFA" <?php echo in_array('SFA', $filtros['prefixos'] ?? []) ? 'selected' : ''; ?>>SFA</option>
                             <option value="SAC" <?php echo in_array('SAC', $filtros['prefixos'] ?? []) ? 'selected' : ''; ?>>SAC</option>
                             <option value="SAP" <?php echo in_array('SAP', $filtros['prefixos'] ?? []) ? 'selected' : ''; ?>>SAP</option>
                             <option value="DIP" <?php echo in_array('DIP', $filtros['prefixos'] ?? []) ? 'selected' : ''; ?>>DIP</option>
@@ -236,25 +496,19 @@ $promotores = $db->fetchAll("SELECT DISTINCT promotor FROM titulos WHERE promoto
 
                     <div class="col-md-3">
                         <label class="form-label">Promotor/Consultor</label>
-                        <input type="text" name="promotor" id="promotorInput" class="form-control" value="<?php echo sanitize($filtros['promotor'] ?? ''); ?>" placeholder="Nome do consultor" list="promotoresList">
-                        <datalist id="promotoresList">
+                        <select name="promotor" id="promotorSelect" class="form-select">
+                            <option value="">Todos</option>
                             <?php foreach ($promotores as $p): ?>
-                                <option value="<?php echo sanitize($p['promotor']); ?>">
+                                <option value="<?php echo sanitize($p['promotor']); ?>" <?php echo ($filtros['promotor'] ?? '') == $p['promotor'] ? 'selected' : ''; ?>>
+                                    <?php echo sanitize($p['promotor']); ?>
+                                </option>
                             <?php endforeach; ?>
-                        </datalist>
+                        </select>
                     </div>
 
                     <div class="col-md-3">
                         <label class="form-label">Parcelas Pagas</label>
                         <input type="number" name="qtd_parcelas_pagas" class="form-control" value="<?php echo sanitize($filtros['qtd_parcelas_pagas'] ?? ''); ?>" placeholder="Quantidade" min="0">
-                    </div>
-
-                    <div class="col-md-3">
-                        <label class="form-label">Apenas 1ª Parcela</label>
-                        <select name="apenas_1parcela" class="form-select">
-                            <option value="">Não</option>
-                            <option value="1" <?php echo ($filtros['apenas_1parcela'] ?? '') == '1' ? 'selected' : ''; ?>>Sim</option>
-                        </select>
                     </div>
 
                     <div class="col-12">
@@ -269,10 +523,57 @@ $promotores = $db->fetchAll("SELECT DISTINCT promotor FROM titulos WHERE promoto
             </div>
         </div>
 
+        <!-- Legenda de Cores -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h6 class="mb-0"><i class="bi bi-palette"></i> Legenda de Cores</h6>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-2">
+                        <div class="p-2 inadimplente-1parcela border rounded text-center">
+                            <small><strong>Apenas 1ª Parcela</strong></small>
+                        </div>
+                    </div>
+                    <div class="col-md-2">
+                        <div class="p-2 inadimplente-2parcelas border rounded text-center">
+                            <small><strong>Apenas 2 Parcelas</strong></small>
+                        </div>
+                    </div>
+                    <div class="col-md-2">
+                        <div class="p-2 inadimplente-menos50 border rounded text-center">
+                            <small><strong>Menos de 50%</strong></small>
+                        </div>
+                    </div>
+                    <div class="col-md-2">
+                        <div class="p-2 inadimplente-mais50 border rounded text-center">
+                            <small><strong>Mais de 50%</strong></small>
+                        </div>
+                    </div>
+                    <div class="col-md-2">
+                        <div class="p-2 adimplente border rounded text-center">
+                            <small><strong>Adimplente</strong></small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- Resultados -->
         <div class="card">
-            <div class="card-header">
+            <div class="card-header d-flex justify-content-between align-items-center">
                 <h5><i class="bi bi-table"></i> Resultados (<?php echo number_format($total, 0, ',', '.'); ?> registros)</h5>
+                <div class="btn-group btn-group-sm">
+                    <button class="btn btn-outline-secondary" onclick="ordenar('nome_titular', '<?php echo $orderDir == 'ASC' ? 'DESC' : 'ASC'; ?>')">
+                        <i class="bi bi-sort-alpha-down"></i> Nome
+                    </button>
+                    <button class="btn btn-outline-secondary" onclick="ordenar('status_inadimplencia', 'ASC')">
+                        <i class="bi bi-palette"></i> Cor
+                    </button>
+                    <button class="btn btn-outline-secondary" onclick="ordenar('data_primeira_venda', 'DESC')">
+                        <i class="bi bi-calendar"></i> Data
+                    </button>
+                </div>
             </div>
             <div class="card-body">
                 <div class="table-responsive">
@@ -291,8 +592,22 @@ $promotores = $db->fetchAll("SELECT DISTINCT promotor FROM titulos WHERE promoto
                             </tr>
                         </thead>
                         <tbody>
-                            <?php foreach ($titulos as $titulo): ?>
-                                <tr>
+                            <?php foreach ($titulos as $titulo):
+                                // Determinar classe de cor
+                                $rowClass = '';
+                                if ($titulo['status_inadimplencia'] == 'INADIMPLENTE - Apenas 1ª Parcela') {
+                                    $rowClass = 'inadimplente-1parcela';
+                                } elseif ($titulo['status_inadimplencia'] == 'INADIMPLENTE - Apenas 2 Parcelas') {
+                                    $rowClass = 'inadimplente-2parcelas';
+                                } elseif ($titulo['status_inadimplencia'] == 'INADIMPLENTE - Menos de 50%') {
+                                    $rowClass = 'inadimplente-menos50';
+                                } elseif (strpos($titulo['status_inadimplencia'], 'INADIMPLENTE') !== false) {
+                                    $rowClass = 'inadimplente-mais50';
+                                } elseif ($titulo['status_inadimplencia'] == 'ADIMPLENTE') {
+                                    $rowClass = 'adimplente';
+                                }
+                            ?>
+                                <tr class="<?php echo $rowClass; ?>">
                                     <td>
                                         <?php echo sanitize($titulo['numero_titulo']); ?><br>
                                         <small class="text-muted"><?php echo sanitize($titulo['nome_produto_atual'] ?? ''); ?></small>
@@ -301,21 +616,17 @@ $promotores = $db->fetchAll("SELECT DISTINCT promotor FROM titulos WHERE promoto
                                         <?php echo sanitize($titulo['nome_titular']); ?><br>
                                         <small class="text-muted"><?php echo sanitize($titulo['documento_titular']); ?></small>
                                     </td>
-                                    <td><?php echo sanitize($titulo['promotor']); ?></td>
+                                    <td><small><?php echo sanitize($titulo['promotor']); ?></small></td>
                                     <td>
                                         <span class="badge bg-<?php echo getStatusBadgeClass($titulo['status_titulo']); ?>">
                                             <?php echo $titulo['status_titulo']; ?>
                                         </span>
                                     </td>
-                                    <td>
-                                        <small><?php echo $titulo['status_inadimplencia']; ?></small>
-                                    </td>
-                                    <td>
-                                        <?php echo $titulo['qtd_parcelas_pagas']; ?>/<?php echo $titulo['quantidade_parcelas_venda']; ?>
-                                    </td>
-                                    <td><?php echo formatCurrency($titulo['total_pago'] ?? 0); ?></td>
-                                    <td><?php echo formatCurrency($titulo['saldo_restante'] ?? 0); ?></td>
-                                    <td><?php echo formatDate($titulo['data_primeira_venda']); ?></td>
+                                    <td><small><?php echo $titulo['status_inadimplencia']; ?></small></td>
+                                    <td><?php echo $titulo['qtd_parcelas_pagas']; ?>/<?php echo $titulo['quantidade_parcelas_venda']; ?></td>
+                                    <td><small><?php echo formatCurrency($titulo['total_pago'] ?? 0); ?></small></td>
+                                    <td><small><?php echo formatCurrency($titulo['saldo_restante'] ?? 0); ?></small></td>
+                                    <td><small><?php echo formatDate($titulo['data_primeira_venda']); ?></small></td>
                                 </tr>
                             <?php endforeach; ?>
                         </tbody>
@@ -323,12 +634,71 @@ $promotores = $db->fetchAll("SELECT DISTINCT promotor FROM titulos WHERE promoto
                 </div>
 
                 <?php if ($total > $perPage): ?>
-                    <?php echo pagination($total, $perPage, $page, 'relatorios.php?' . http_build_query($filtros)); ?>
+                    <?php
+                    $paginationParams = $filtros;
+                    unset($paginationParams['page']);
+                    echo pagination($total, $perPage, $page, 'relatorios.php?' . http_build_query($paginationParams));
+                    ?>
                 <?php endif; ?>
             </div>
         </div>
     </div>
 
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+    <script>
+        // Select2 para autocomplete de promotor
+        $(document).ready(function() {
+            $('#promotorSelect').select2({
+                theme: 'bootstrap-5',
+                placeholder: 'Selecione um consultor',
+                allowClear: true
+            });
+        });
+
+        // Função para ordenar
+        function ordenar(campo, direcao) {
+            const form = document.getElementById('filterForm');
+            const input1 = document.createElement('input');
+            input1.type = 'hidden';
+            input1.name = 'order_by';
+            input1.value = campo;
+
+            const input2 = document.createElement('input');
+            input2.type = 'hidden';
+            input2.name = 'order_dir';
+            input2.value = direcao;
+
+            form.appendChild(input1);
+            form.appendChild(input2);
+            form.submit();
+        }
+
+        // Gerar resumo com IA
+        function gerarResumoIA() {
+            const btn = event.target;
+            const originalHTML = btn.innerHTML;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Gerando...';
+            btn.disabled = true;
+
+            fetch('api/gerar_resumo_ia.php?importacao_id=<?php echo $importacaoId; ?>')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        document.getElementById('iaResumo').innerHTML = '<div class="alert alert-light"><pre class="mb-0">' + data.resumo + '</pre></div>';
+                    } else {
+                        alert('Erro ao gerar resumo: ' + data.error);
+                        btn.innerHTML = originalHTML;
+                        btn.disabled = false;
+                    }
+                })
+                .catch(error => {
+                    alert('Erro ao gerar resumo: ' + error);
+                    btn.innerHTML = originalHTML;
+                    btn.disabled = false;
+                });
+        }
+    </script>
 </body>
 </html>
