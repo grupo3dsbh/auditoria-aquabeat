@@ -51,6 +51,47 @@ class CSVImporter {
     }
 
     /**
+     * Detectar delimitador do CSV (vírgula, ponto e vírgula, tab, etc)
+     */
+    private function detectDelimiter($file) {
+        // Ler primeira linha
+        $firstLine = fgets($file);
+        rewind($file);
+
+        if (!$firstLine) {
+            return ','; // Default
+        }
+
+        // Delimitadores comuns
+        $delimiters = [
+            ';' => 0,  // Ponto e vírgula (mais comum em português)
+            ',' => 0,  // Vírgula
+            "\t" => 0, // Tab
+            '|' => 0   // Pipe
+        ];
+
+        // Contar ocorrências de cada delimitador
+        foreach ($delimiters as $delimiter => $count) {
+            $delimiters[$delimiter] = substr_count($firstLine, $delimiter);
+        }
+
+        // Remover delimitadores com 0 ocorrências
+        $delimiters = array_filter($delimiters);
+
+        if (empty($delimiters)) {
+            return ','; // Default se nenhum encontrado
+        }
+
+        // Retornar o delimitador mais comum
+        arsort($delimiters);
+        $detected = array_key_first($delimiters);
+
+        Logger::info("CSV delimiter detected", ['delimiter' => $detected === "\t" ? 'TAB' : $detected, 'count' => $delimiters[$detected]]);
+
+        return $detected;
+    }
+
+    /**
      * Ler cabeçalho do CSV e sugerir mapeamento automático
      */
     public function analyzeCSV($caminhoArquivo) {
@@ -65,9 +106,10 @@ class CSVImporter {
         }
 
         $encoding = $this->detectEncoding($file);
+        $delimiter = $this->detectDelimiter($file);
 
         // Ler cabeçalho
-        $header = fgetcsv($file, 0, ',');
+        $header = fgetcsv($file, 0, $delimiter);
 
         if (!$header) {
             fclose($file);
@@ -82,7 +124,7 @@ class CSVImporter {
         }
 
         // Ler primeira linha de dados como exemplo
-        $exampleRow = fgetcsv($file, 0, ',');
+        $exampleRow = fgetcsv($file, 0, $delimiter);
 
         if ($exampleRow && $encoding !== 'UTF-8') {
             $exampleRow = array_map(function($col) use ($encoding) {
@@ -106,6 +148,7 @@ class CSVImporter {
             'example_row' => $exampleRow,
             'total_rows' => $totalLinhas,
             'encoding' => $encoding,
+            'delimiter' => $delimiter,
             'suggested_mapping' => $mapeamentoSugerido
         ];
     }
@@ -218,14 +261,15 @@ class CSVImporter {
 
             $file = fopen($caminhoArquivo, 'r');
             $encoding = $this->detectEncoding($file);
+            $delimiter = $this->detectDelimiter($file);
 
             // Pular cabeçalho
-            fgetcsv($file, 0, ',');
+            fgetcsv($file, 0, $delimiter);
 
             $batchSize = 100;
             $batch = [];
 
-            while (($row = fgetcsv($file, 0, ',')) !== false) {
+            while (($row = fgetcsv($file, 0, $delimiter)) !== false) {
                 $this->totalLinhas++;
 
                 // Converter encoding se necessário

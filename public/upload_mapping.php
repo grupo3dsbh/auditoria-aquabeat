@@ -55,7 +55,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <i class="bi bi-info-circle"></i>
             <strong>Arquivo:</strong> <?php echo sanitize(basename($importData['file_path'])); ?> |
             <strong>Total de linhas:</strong> <?php echo number_format($analysis['total_rows'], 0, ',', '.'); ?> |
-            <strong>Encoding:</strong> <?php echo $analysis['encoding']; ?>
+            <strong>Encoding:</strong> <?php echo $analysis['encoding']; ?> |
+            <strong>Delimitador:</strong> <?php echo $analysis['delimiter'] === "\t" ? 'TAB' : sanitize($analysis['delimiter']); ?>
         </div>
 
         <form method="POST">
