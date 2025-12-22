@@ -1,10 +1,18 @@
 <?php
+// IMPORTANTE: Desabilitar warnings/notices para não quebrar o JSON
+error_reporting(E_ERROR | E_PARSE);
+ini_set('display_errors', '0');
+
 define('APP_ROOT', dirname(dirname(__DIR__)));
 require_once APP_ROOT . '/includes/bootstrap.php';
 
 requireAuth('login.php');
 
-header('Content-Type: application/json');
+// Limpar qualquer output anterior
+if (ob_get_level()) ob_end_clean();
+ob_start();
+
+header('Content-Type: application/json; charset=utf-8');
 
 try {
     $importacaoId = $_GET['importacao_id'] ?? null;
@@ -118,20 +126,28 @@ try {
     // Gerar resumo inteligente
     $resumo = gerarResumoInteligente($stats, $taxaInadimplencia, $topConsultores, $titulosProblematicos);
 
+    // Limpar buffer de saída antes de enviar JSON
+    if (ob_get_level()) ob_end_clean();
+
     echo json_encode([
         'success' => true,
         'resumo' => $resumo,
         'stats' => $stats,
         'taxa_inadimplencia' => $taxaInadimplencia
-    ]);
+    ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 
 } catch (Exception $e) {
+    // Limpar buffer de saída antes de enviar JSON de erro
+    if (ob_get_level()) ob_end_clean();
+
     Logger::error("Erro ao gerar resumo IA: " . $e->getMessage());
     echo json_encode([
         'success' => false,
         'error' => $e->getMessage()
-    ]);
+    ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 }
+
+exit;
 
 function gerarResumoInteligente($stats, $taxa, $topConsultores, $problematicos) {
     $resumo = "📊 **ANÁLISE COMPORTAMENTAL DE INADIMPLÊNCIA**\n\n";

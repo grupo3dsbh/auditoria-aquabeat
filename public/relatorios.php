@@ -271,19 +271,86 @@ if (!is_array($filtroTitulo)) {
 
 // Análise por tipo de inadimplência
 $paramsAnalise = array_slice($params, 0, count($params) - 2);
+
+// NOVA LÓGICA: Separar inadimplentes bloqueados/cancelados + organizar por categoria
 $inadimplenciaPorTipo = $db->fetchAll("
     SELECT
-        status_inadimplencia,
+        CASE
+            -- Inadimplentes bloqueados ou cancelados (PRIORIDADE 1)
+            WHEN status_inadimplencia LIKE 'INADIMPLENTE%' AND status_titulo IN ('Bloqueado', 'Cancelado')
+                THEN 'INADIMPLENTE (Bloqueados e/ou Cancelados)'
+            -- Categoria REQUER ANÁLISE (PRIORIDADE 2)
+            WHEN status_inadimplencia LIKE 'INADIMPLENTE - Requer análise%'
+                THEN 'REQUER ANÁLISE'
+            -- 3 a 6 meses - Experiência (PRIORIDADE 3)
+            WHEN status_inadimplencia = 'INADIMPLENTE - 3 a 6 meses'
+                THEN '3 a 6 meses - Experiência'
+            -- 6 a 9 meses - Expectativa (PRIORIDADE 4)
+            WHEN status_inadimplencia = 'INADIMPLENTE - 6 a 9 meses'
+                THEN '6 a 9 meses - Expectativa'
+            -- 9 a 12 meses - Problema sério (PRIORIDADE 5)
+            WHEN status_inadimplencia = 'INADIMPLENTE - 9 a 12 meses'
+                THEN '9 a 12 meses - Problema sério'
+            -- Mais de 12 meses - Crônico (PRIORIDADE 6)
+            WHEN status_inadimplencia = 'INADIMPLENTE - Mais de 12 meses'
+                THEN 'Mais de 12 meses - Crônico'
+            -- Outros inadimplentes
+            ELSE status_inadimplencia
+        END as status_inadimplencia,
         COUNT(*) as total,
         SUM(saldo_restante) as valor_risco,
-        ROUND(COUNT(*) * 100.0 / (SELECT COUNT(*) FROM titulos WHERE " . implode(' AND ', $where) . "), 2) as percentual
+        ROUND(COUNT(*) * 100.0 / (SELECT COUNT(*) FROM titulos WHERE " . implode(' AND ', $where) . "), 2) as percentual,
+        -- Campo auxiliar para ordenação
+        CASE
+            WHEN status_inadimplencia LIKE 'INADIMPLENTE%' AND status_titulo IN ('Bloqueado', 'Cancelado') THEN 1
+            WHEN status_inadimplencia LIKE 'INADIMPLENTE - Requer análise%' THEN 2
+            WHEN status_inadimplencia = 'INADIMPLENTE - 3 a 6 meses' THEN 3
+            WHEN status_inadimplencia = 'INADIMPLENTE - 6 a 9 meses' THEN 4
+            WHEN status_inadimplencia = 'INADIMPLENTE - 9 a 12 meses' THEN 5
+            WHEN status_inadimplencia = 'INADIMPLENTE - Mais de 12 meses' THEN 6
+            ELSE 99
+        END as ordem
     FROM titulos
     WHERE " . implode(' AND ', $where) . "
       AND status_inadimplencia LIKE 'INADIMPLENTE%'
-    GROUP BY status_inadimplencia
-    ORDER BY total DESC",
+    GROUP BY
+        CASE
+            WHEN status_inadimplencia LIKE 'INADIMPLENTE%' AND status_titulo IN ('Bloqueado', 'Cancelado')
+                THEN 'INADIMPLENTE (Bloqueados e/ou Cancelados)'
+            WHEN status_inadimplencia LIKE 'INADIMPLENTE - Requer análise%'
+                THEN 'REQUER ANÁLISE'
+            WHEN status_inadimplencia = 'INADIMPLENTE - 3 a 6 meses'
+                THEN '3 a 6 meses - Experiência'
+            WHEN status_inadimplencia = 'INADIMPLENTE - 6 a 9 meses'
+                THEN '6 a 9 meses - Expectativa'
+            WHEN status_inadimplencia = 'INADIMPLENTE - 9 a 12 meses'
+                THEN '9 a 12 meses - Problema sério'
+            WHEN status_inadimplencia = 'INADIMPLENTE - Mais de 12 meses'
+                THEN 'Mais de 12 meses - Crônico'
+            ELSE status_inadimplencia
+        END,
+        ordem
+    ORDER BY ordem, total DESC",
     array_merge($paramsAnalise, $paramsAnalise) // Duplicar params: subquery + query principal
 );
+
+// Adicionar categoria Adimplente separadamente
+$adimplentes = $db->fetchOne("
+    SELECT
+        'Adimplente - Em dia' as status_inadimplencia,
+        COUNT(*) as total,
+        SUM(saldo_restante) as valor_risco,
+        ROUND(COUNT(*) * 100.0 / (SELECT COUNT(*) FROM titulos WHERE " . implode(' AND ', $where) . "), 2) as percentual,
+        999 as ordem
+    FROM titulos
+    WHERE " . implode(' AND ', $where) . "
+      AND status_inadimplencia = 'ADIMPLENTE'",
+    array_merge($paramsAnalise, $paramsAnalise)
+);
+
+if ($adimplentes && $adimplentes['total'] > 0) {
+    $inadimplenciaPorTipo[] = $adimplentes;
+}
 
 // Ranking de consultores com mais inadimplência
 $rankingConsultores = $db->fetchAll("
@@ -1704,19 +1771,30 @@ endif;
             btn.disabled = true;
 
             fetch('api/gerar_resumo_ia.php?importacao_id=<?php echo $importacaoId; ?>')
-                .then(response => response.json())
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('HTTP error! status: ' + response.status);
+                    }
+                    // Verificar se a resposta é JSON válido
+                    const contentType = response.headers.get("content-type");
+                    if (!contentType || !contentType.includes("application/json")) {
+                        throw new Error('Resposta não é JSON! Content-Type: ' + contentType);
+                    }
+                    return response.json();
+                })
                 .then(data => {
                     if (data.success) {
                         const resumoFormatado = formatarResumo(data.resumo);
                         document.getElementById('iaResumo').innerHTML = '<div class="alert alert-light">' + resumoFormatado + '</div>';
                     } else {
-                        alert('Erro ao gerar resumo: ' + data.error);
+                        alert('Erro ao gerar resumo: ' + (data.error || 'Erro desconhecido'));
                         btn.innerHTML = originalHTML;
                         btn.disabled = false;
                     }
                 })
                 .catch(error => {
-                    alert('Erro ao gerar resumo: ' + error);
+                    console.error('Erro completo:', error);
+                    alert('Erro ao gerar resumo: ' + error.message + '\n\nVerifique o console do navegador para mais detalhes.');
                     btn.innerHTML = originalHTML;
                     btn.disabled = false;
                 });
