@@ -130,7 +130,7 @@ $stats = $db->fetchOne("
         COUNT(CASE WHEN status_titulo = 'Cancelado' THEN 1 END) as titulos_cancelados,
 
         -- Valores financeiros
-        SUM(valor_total_venda) as valor_total_vendido,
+        SUM(valor_total_plano) as valor_total_vendido,
         SUM(total_pago) as valor_total_recebido,
         SUM(saldo_restante) as valor_total_restante,
 
