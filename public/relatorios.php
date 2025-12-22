@@ -16,6 +16,9 @@ if (!$ultimaImportacao) {
 
 $importacaoId = $ultimaImportacao['id'];
 
+// Detectar se é visualização apenas de cartões
+$viewCartoes = !empty($_GET['view']) && $_GET['view'] === 'cartoes';
+
 // Calcular data fim padrão: último dia de 2 meses antes do mês atual
 $dataFimPadrao = date('Y-m-t', strtotime('-2 months'));
 
@@ -311,6 +314,92 @@ $promotores = $db->fetchAll("
     ORDER BY promotor",
     [$importacaoId]
 );
+
+// Se view=cartoes, renderizar apenas os cards e sair
+if ($viewCartoes):
+?>
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cards - Resumo</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+</head>
+<body>
+    <div class="container-fluid mt-3">
+        <!-- Estatísticas Principais -->
+        <div class="row mb-3">
+            <!-- Card 1: Total de Títulos -->
+            <div class="col-md-3">
+                <div class="card text-white bg-primary h-100">
+                    <div class="card-body">
+                        <h6 class="mb-3"><i class="bi bi-clipboard-data"></i> Total de Títulos</h6>
+                        <h3 class="mb-2"><?php echo number_format($stats['total'], 0, ',', '.'); ?></h3>
+                        <small>
+                            <i class="bi bi-check-circle"></i> <?php echo number_format($stats['titulos_ativos'], 0, ',', '.'); ?> Ativos<br>
+                            <i class="bi bi-lock"></i> <?php echo number_format($stats['titulos_bloqueados'], 0, ',', '.'); ?> Bloqueados<br>
+                            <i class="bi bi-x-circle"></i> <?php echo number_format($stats['titulos_cancelados'], 0, ',', '.'); ?> Cancelados
+                        </small>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Card 2: Inadimplentes -->
+            <div class="col-md-3">
+                <div class="card text-white bg-danger h-100">
+                    <div class="card-body">
+                        <h6 class="mb-3"><i class="bi bi-exclamation-triangle"></i> Inadimplentes</h6>
+                        <h3 class="mb-2"><?php echo number_format($stats['total_inadimplentes'], 0, ',', '.'); ?></h3>
+                        <small>
+                            Taxa: <?php echo formatPercentage($stats['total_inadimplentes'] * 100 / max($stats['total'], 1), 1); ?><br>
+                            <i class="bi bi-check-circle"></i> <?php echo number_format($stats['inadimplentes_ativos'], 0, ',', '.'); ?> Ativos<br>
+                            <i class="bi bi-lock"></i> <?php echo number_format($stats['inadimplentes_bloqueados'], 0, ',', '.'); ?> Bloqueados
+                        </small>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Card 3: Valor Total Vendido -->
+            <div class="col-md-3">
+                <div class="card text-white bg-success h-100">
+                    <div class="card-body">
+                        <h6 class="mb-3"><i class="bi bi-cash-stack"></i> Valor Total</h6>
+                        <h4 class="mb-2"><?php echo formatCurrency($stats['valor_total_vendido'] ?? 0); ?></h4>
+                        <small>
+                            <i class="bi bi-check"></i> Recebido: <?php echo formatCurrency($stats['valor_total_recebido'] ?? 0); ?><br>
+                            <i class="bi bi-clock"></i> Restante: <?php echo formatCurrency($stats['valor_total_restante'] ?? 0); ?>
+                        </small>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Card 4: Valor em Risco -->
+            <div class="col-md-3">
+                <div class="card text-white bg-dark h-100">
+                    <div class="card-body">
+                        <h6 class="mb-3"><i class="bi bi-shield-exclamation"></i> Valor em Risco</h6>
+                        <h4 class="mb-2"><?php echo formatCurrency($stats['valor_em_risco'] ?? 0); ?></h4>
+                        <small>
+                            Saldo restante apenas de inadimplentes<br>
+                            <?php
+                            $percRisco = $stats['valor_total_vendido'] > 0
+                                ? ($stats['valor_em_risco'] / $stats['valor_total_vendido']) * 100
+                                : 0;
+                            ?>
+                            <?php echo number_format($percRisco, 2, ',', '.'); ?>% do total vendido
+                        </small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
+<?php
+exit;
+endif;
 ?>
 <!DOCTYPE html>
 <html lang="pt-BR">
