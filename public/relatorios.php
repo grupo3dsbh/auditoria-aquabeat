@@ -41,10 +41,19 @@ $filtros['data_fim'] = $dataFim;
 $where[] = "(numero_titulo LIKE 'SFA%' OR numero_titulo LIKE 'SBF%')";
 $filtros['prefixos'] = ['SFA', 'SBF'];
 
+// Filtro por status do título (permite múltiplos)
 if (!empty($_GET['status_titulo'])) {
-    $where[] = "status_titulo = ?";
-    $params[] = $_GET['status_titulo'];
-    $filtros['status_titulo'] = $_GET['status_titulo'];
+    $statusTitulos = is_array($_GET['status_titulo']) ? $_GET['status_titulo'] : [$_GET['status_titulo']];
+    $statusTitulos = array_filter($statusTitulos); // Remove valores vazios
+
+    if (!empty($statusTitulos)) {
+        $placeholders = implode(',', array_fill(0, count($statusTitulos), '?'));
+        $where[] = "status_titulo IN ($placeholders)";
+        foreach ($statusTitulos as $status) {
+            $params[] = $status;
+        }
+        $filtros['status_titulo'] = $statusTitulos;
+    }
 }
 
 if (!empty($_GET['status_inadimplencia'])) {
@@ -103,8 +112,14 @@ if (!empty($_GET['cpf_duplicado']) && $_GET['cpf_duplicado'] == '1') {
 }
 
 // Ordenação
-$orderBy = !empty($_GET['order_by']) ? $_GET['order_by'] : 'data_primeira_venda';
-$orderDir = !empty($_GET['order_dir']) && $_GET['order_dir'] == 'ASC' ? 'ASC' : 'DESC';
+// Se filtro CPF duplicado estiver ativo, ordenar por documento_titular automaticamente
+if (!empty($_GET['cpf_duplicado']) && $_GET['cpf_duplicado'] == '1') {
+    $orderBy = 'documento_titular';
+    $orderDir = 'ASC';
+} else {
+    $orderBy = !empty($_GET['order_by']) ? $_GET['order_by'] : 'data_primeira_venda';
+    $orderDir = !empty($_GET['order_dir']) && $_GET['order_dir'] == 'ASC' ? 'ASC' : 'DESC';
+}
 $filtros['order_by'] = $orderBy;
 $filtros['order_dir'] = $orderDir;
 
@@ -128,6 +143,49 @@ $params[] = $offset;
 
 $titulos = $db->fetchAll($sql, $params);
 
+// Se filtro CPF duplicado estiver ativo, criar array de contagem por CPF
+$cpfContadores = [];
+$cpfTituloIndice = []; // Mapeia titulo_id => [indice atual, total]
+
+if (!empty($_GET['cpf_duplicado']) && $_GET['cpf_duplicado'] == '1') {
+    // Buscar TODOS os títulos ordenados por CPF (para criar índices corretos)
+    $sqlTodosTitulos = "SELECT id, documento_titular
+                        FROM titulos
+                        WHERE " . implode(' AND ', $where) . "
+                        ORDER BY documento_titular ASC, id ASC";
+
+    $paramsTodos = array_slice($params, 0, count($params) - 2); // Remove LIMIT e OFFSET
+    $todosTitulos = $db->fetchAll($sqlTodosTitulos, $paramsTodos);
+
+    // Criar índices: para cada CPF, numerar os títulos sequencialmente
+    $cpfContagem = [];
+    $cpfIndiceAtual = [];
+
+    foreach ($todosTitulos as $titulo) {
+        $cpf = $titulo['documento_titular'];
+
+        if (!isset($cpfContagem[$cpf])) {
+            $cpfContagem[$cpf] = 0;
+            $cpfIndiceAtual[$cpf] = 0;
+        }
+
+        $cpfContagem[$cpf]++;
+    }
+
+    // Segunda passagem: criar mapa de índices
+    foreach ($todosTitulos as $titulo) {
+        $cpf = $titulo['documento_titular'];
+        $cpfIndiceAtual[$cpf]++;
+
+        $cpfTituloIndice[$titulo['id']] = [
+            'indice' => $cpfIndiceAtual[$cpf],
+            'total' => $cpfContagem[$cpf]
+        ];
+    }
+
+    $cpfContadores = $cpfContagem;
+}
+
 // Estatísticas detalhadas
 $stats = $db->fetchOne("
     SELECT
@@ -145,9 +203,9 @@ $stats = $db->fetchOne("
         COUNT(CASE WHEN status_titulo = 'Cancelado' THEN 1 END) as titulos_cancelados,
 
         -- Valores financeiros
-        SUM(valor_total_plano) as valor_total_vendido,
-        SUM(total_pago) as valor_total_recebido,
-        SUM(saldo_restante) as valor_total_restante,
+        COALESCE(SUM(valor_total_plano), 0) as valor_total_vendido,
+        COALESCE(SUM(total_pago), 0) as valor_total_recebido,
+        COALESCE(SUM(saldo_restante), 0) as valor_total_restante,
 
         -- Valor em risco (apenas inadimplentes)
         SUM(CASE WHEN status_inadimplencia LIKE 'INADIMPLENTE%' THEN saldo_restante ELSE 0 END) as valor_em_risco,
@@ -162,9 +220,22 @@ $stats = $db->fetchOne("
     array_slice($params, 0, count($params) - 2)
 );
 
+// Corrigir valor_total_vendido se estiver zerado mas tiver recebido/restante
+// Isso pode acontecer se a coluna valor_total_plano estiver vazia no banco
+if (($stats['valor_total_vendido'] ?? 0) == 0) {
+    $somaCalculada = ($stats['valor_total_recebido'] ?? 0) + ($stats['valor_total_restante'] ?? 0);
+    if ($somaCalculada > 0) {
+        $stats['valor_total_vendido'] = $somaCalculada;
+    }
+}
+
 // Detectar contexto do filtro para exibição condicional
 $filtroStatus = $_GET['status_inadimplencia'] ?? '';
-$filtroTitulo = $_GET['status_titulo'] ?? '';
+$filtroTitulo = $_GET['status_titulo'] ?? [];
+// Se não for array, converte
+if (!is_array($filtroTitulo)) {
+    $filtroTitulo = empty($filtroTitulo) ? [] : [$filtroTitulo];
+}
 
 // Análise por tipo de inadimplência
 $paramsAnalise = array_slice($params, 0, count($params) - 2);
@@ -347,7 +418,7 @@ $promotores = $db->fetchAll("
 
             <!-- Card 4: Valor em Risco / Perdido / A Receber (contextual) -->
             <div class="col-md-3">
-                <?php if ($filtroTitulo == 'Cancelado'): ?>
+                <?php if (count($filtroTitulo) === 1 && in_array('Cancelado', $filtroTitulo)): ?>
                     <!-- Filtro de Cancelado: Mostrar Valor Perdido -->
                     <div class="card text-white bg-secondary h-100">
                         <div class="card-body">
@@ -644,12 +715,18 @@ $promotores = $db->fetchAll("
 
                     <div class="col-md-3">
                         <label class="form-label">Status do Título</label>
-                        <select name="status_titulo" class="form-select">
-                            <option value="">Todos</option>
-                            <option value="Ativo" <?php echo ($filtros['status_titulo'] ?? '') == 'Ativo' ? 'selected' : ''; ?>>Ativo</option>
-                            <option value="Bloqueado" <?php echo ($filtros['status_titulo'] ?? '') == 'Bloqueado' ? 'selected' : ''; ?>>Bloqueado</option>
-                            <option value="Cancelado" <?php echo ($filtros['status_titulo'] ?? '') == 'Cancelado' ? 'selected' : ''; ?>>Cancelado</option>
+                        <select name="status_titulo[]" class="form-select" multiple size="3">
+                            <?php
+                            $statusSelecionados = $filtros['status_titulo'] ?? [];
+                            if (!is_array($statusSelecionados)) {
+                                $statusSelecionados = [$statusSelecionados];
+                            }
+                            ?>
+                            <option value="Ativo" <?php echo in_array('Ativo', $statusSelecionados) ? 'selected' : ''; ?>>Ativo</option>
+                            <option value="Bloqueado" <?php echo in_array('Bloqueado', $statusSelecionados) ? 'selected' : ''; ?>>Bloqueado</option>
+                            <option value="Cancelado" <?php echo in_array('Cancelado', $statusSelecionados) ? 'selected' : ''; ?>>Cancelado</option>
                         </select>
+                        <small class="text-muted">Ctrl+clique para múltiplos</small>
                     </div>
 
                     <div class="col-md-3">
@@ -774,28 +851,42 @@ $promotores = $db->fetchAll("
                         </thead>
                         <tbody>
                             <?php foreach ($titulos as $titulo):
-                                // Determinar classe de cor
+                                // Determinar classe de cor e estilo inline (fallback)
                                 $rowClass = '';
+                                $rowStyle = '';
+
                                 if ($titulo['status_inadimplencia'] == 'INADIMPLENTE - Apenas 1ª Parcela') {
                                     $rowClass = 'inadimplente-1parcela';
+                                    $rowStyle = 'background-color: #ffebee !important;';
                                 } elseif ($titulo['status_inadimplencia'] == 'INADIMPLENTE - Apenas 2 Parcelas') {
                                     $rowClass = 'inadimplente-2parcelas';
+                                    $rowStyle = 'background-color: #ffe0b2 !important;';
                                 } elseif ($titulo['status_inadimplencia'] == 'INADIMPLENTE - Menos de 50%') {
                                     $rowClass = 'inadimplente-menos50';
+                                    $rowStyle = 'background-color: #fff9c4 !important;';
                                 } elseif (strpos($titulo['status_inadimplencia'], 'INADIMPLENTE') !== false) {
                                     $rowClass = 'inadimplente-mais50';
+                                    $rowStyle = 'background-color: #ffcdd2 !important;';
                                 } elseif ($titulo['status_inadimplencia'] == 'ADIMPLENTE') {
                                     $rowClass = 'adimplente';
+                                    $rowStyle = 'background-color: #e8f5e9 !important;';
                                 }
                             ?>
-                                <tr class="<?php echo $rowClass; ?>">
+                                <tr class="<?php echo $rowClass; ?>" style="<?php echo $rowStyle; ?>">
                                     <td>
                                         <?php echo sanitize($titulo['numero_titulo']); ?><br>
                                         <small class="text-muted"><?php echo sanitize($titulo['nome_produto_atual'] ?? ''); ?></small>
                                     </td>
                                     <td>
                                         <?php echo sanitize($titulo['nome_titular']); ?><br>
-                                        <small class="text-muted"><?php echo sanitize($titulo['documento_titular']); ?></small>
+                                        <small class="text-muted">
+                                            <?php echo sanitize($titulo['documento_titular']); ?>
+                                            <?php if (!empty($cpfTituloIndice[$titulo['id']])): ?>
+                                                <span class="badge bg-info text-dark">
+                                                    <?php echo $cpfTituloIndice[$titulo['id']]['indice']; ?> de <?php echo $cpfTituloIndice[$titulo['id']]['total']; ?>
+                                                </span>
+                                            <?php endif; ?>
+                                        </small>
                                     </td>
                                     <td><small><?php echo sanitize($titulo['promotor']); ?></small></td>
                                     <td>

@@ -27,6 +27,32 @@ class InadimplenciaHelper {
         $dataPrimeiraVenda = $titulo['data_primeira_venda'];
         $parcelasPagas = (int)$titulo['qtd_parcelas_pagas'];
         $totalParcelas = (int)$titulo['quantidade_parcelas_venda'];
+        $statusTitulo = $titulo['status_titulo'] ?? 'Ativo';
+
+        // IMPORTANTE: Títulos Bloqueados ou Cancelados param de ter cobrança
+        // Para esses títulos, não faz sentido calcular inadimplência baseada em tempo
+        if ($statusTitulo === 'Bloqueado' || $statusTitulo === 'Cancelado') {
+            // Para títulos bloqueados/cancelados, verificamos apenas se pagou o total do plano
+            if ($parcelasPagas >= $totalParcelas) {
+                return 'ADIMPLENTE';
+            }
+
+            // Se pagou apenas 1 parcela
+            if ($parcelasPagas == 1) {
+                return 'INADIMPLENTE - Apenas 1ª Parcela';
+            }
+
+            // Se pagou apenas 2 parcelas
+            if ($parcelasPagas == 2) {
+                return 'INADIMPLENTE - Apenas 2 Parcelas';
+            }
+
+            // Para outros casos, apenas marca como inadimplente genérico
+            // (não usamos "Mais de 50%" porque não há mais cobrança ativa)
+            return 'INADIMPLENTE';
+        }
+
+        // Para títulos ATIVOS, aplicar lógica baseada em tempo
 
         // Calcular meses desde a primeira venda
         $mesesDesdeVenda = self::calcularMesesDesdeVenda($dataPrimeiraVenda);
@@ -141,7 +167,7 @@ class InadimplenciaHelper {
 
         // Buscar todos os títulos da importação
         $titulos = $db->fetchAll(
-            "SELECT id, data_primeira_venda, qtd_parcelas_pagas, quantidade_parcelas_venda, status_inadimplencia
+            "SELECT id, data_primeira_venda, qtd_parcelas_pagas, quantidade_parcelas_venda, status_inadimplencia, status_titulo
              FROM titulos
              WHERE importacao_id = ?",
             [$importacaoId]
