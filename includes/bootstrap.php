@@ -61,6 +61,17 @@ if (DEBUG_MODE) {
     ini_set('display_errors', '0');
 }
 
+// Carregar classes
+require_once __DIR__ . '/Logger.php';
+require_once __DIR__ . '/Database.php';
+require_once __DIR__ . '/Auth.php';
+require_once __DIR__ . '/AIService.php';
+require_once __DIR__ . '/InadimplenciaHelper.php';
+require_once __DIR__ . '/CSVImporter.php';
+
+// Inicializar sessão e autenticação
+Auth::init();
+
 // Verificar modo de depuração do sistema (configurável pelo admin)
 // Esta configuração sobrescreve DEBUG_MODE se estiver ativa
 try {
@@ -74,20 +85,9 @@ try {
         define('SISTEMA_DEBUG_MODE', false);
     }
 } catch (Exception $e) {
-    // Banco ainda não configurado, ignora
+    // Banco ainda não configurado ou erro, desativa modo debug
     define('SISTEMA_DEBUG_MODE', false);
 }
-
-// Carregar classes
-require_once __DIR__ . '/Logger.php';
-require_once __DIR__ . '/Database.php';
-require_once __DIR__ . '/Auth.php';
-require_once __DIR__ . '/AIService.php';
-require_once __DIR__ . '/InadimplenciaHelper.php';
-require_once __DIR__ . '/CSVImporter.php';
-
-// Inicializar sessão e autenticação
-Auth::init();
 
 // Funções auxiliares
 function redirect($url) {
