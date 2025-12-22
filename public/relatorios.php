@@ -113,16 +113,43 @@ $params[] = $offset;
 
 $titulos = $db->fetchAll($sql, $params);
 
-// Estatísticas gerais
+// Estatísticas detalhadas
 $stats = $db->fetchOne("
     SELECT
         COUNT(*) as total,
-        COUNT(CASE WHEN status_inadimplencia LIKE 'INADIMPLENTE%' THEN 1 END) as inadimplentes,
-        SUM(saldo_restante) as valor_perdido
+
+        -- Total de inadimplentes
+        COUNT(CASE WHEN status_inadimplencia LIKE 'INADIMPLENTE%' THEN 1 END) as total_inadimplentes,
+        COUNT(CASE WHEN status_inadimplencia LIKE 'INADIMPLENTE%' AND status_titulo = 'Ativo' THEN 1 END) as inadimplentes_ativos,
+        COUNT(CASE WHEN status_inadimplencia LIKE 'INADIMPLENTE%' AND status_titulo = 'Bloqueado' THEN 1 END) as inadimplentes_bloqueados,
+        COUNT(CASE WHEN status_inadimplencia LIKE 'INADIMPLENTE%' AND status_titulo = 'Cancelado' THEN 1 END) as inadimplentes_cancelados,
+
+        -- Breakdown de títulos por status
+        COUNT(CASE WHEN status_titulo = 'Ativo' THEN 1 END) as titulos_ativos,
+        COUNT(CASE WHEN status_titulo = 'Bloqueado' THEN 1 END) as titulos_bloqueados,
+        COUNT(CASE WHEN status_titulo = 'Cancelado' THEN 1 END) as titulos_cancelados,
+
+        -- Valores financeiros
+        SUM(valor_total_venda) as valor_total_vendido,
+        SUM(total_pago) as valor_total_recebido,
+        SUM(saldo_restante) as valor_total_restante,
+
+        -- Valor em risco (apenas inadimplentes)
+        SUM(CASE WHEN status_inadimplencia LIKE 'INADIMPLENTE%' THEN saldo_restante ELSE 0 END) as valor_em_risco,
+
+        -- Valor perdido (apenas cancelados)
+        SUM(CASE WHEN status_titulo = 'Cancelado' THEN saldo_restante ELSE 0 END) as valor_perdido,
+
+        -- Valor a receber (adimplentes)
+        SUM(CASE WHEN status_inadimplencia = 'ADIMPLENTE' THEN saldo_restante ELSE 0 END) as valor_a_receber_adimplente
     FROM titulos
     WHERE " . implode(' AND ', array_slice($where, 0, count($where))),
     array_slice($params, 0, count($params) - 2)
 );
+
+// Detectar contexto do filtro para exibição condicional
+$filtroStatus = $_GET['status_inadimplencia'] ?? '';
+$filtroTitulo = $_GET['status_titulo'] ?? '';
 
 // Análise por tipo de inadimplência
 $inadimplenciaPorTipo = $db->fetchAll("
@@ -248,30 +275,91 @@ $promotores = $db->fetchAll("
 
         <!-- Estatísticas Principais -->
         <div class="row mb-4">
-            <div class="col-md-4">
-                <div class="card text-white bg-primary">
+            <!-- Card 1: Total de Títulos -->
+            <div class="col-md-3">
+                <div class="card text-white bg-primary h-100">
                     <div class="card-body">
-                        <h6>Total de Títulos</h6>
-                        <h3><?php echo number_format($stats['total'], 0, ',', '.'); ?></h3>
+                        <h6 class="mb-3"><i class="bi bi-clipboard-data"></i> Total de Títulos</h6>
+                        <h3 class="mb-2"><?php echo number_format($stats['total'], 0, ',', '.'); ?></h3>
+                        <small>
+                            <i class="bi bi-check-circle"></i> <?php echo number_format($stats['titulos_ativos'], 0, ',', '.'); ?> Ativos<br>
+                            <i class="bi bi-lock"></i> <?php echo number_format($stats['titulos_bloqueados'], 0, ',', '.'); ?> Bloqueados<br>
+                            <i class="bi bi-x-circle"></i> <?php echo number_format($stats['titulos_cancelados'], 0, ',', '.'); ?> Cancelados
+                        </small>
                     </div>
                 </div>
             </div>
-            <div class="col-md-4">
-                <div class="card text-white bg-danger">
+
+            <!-- Card 2: Inadimplentes -->
+            <div class="col-md-3">
+                <div class="card text-white bg-danger h-100">
                     <div class="card-body">
-                        <h6>Inadimplentes</h6>
-                        <h3><?php echo number_format($stats['inadimplentes'], 0, ',', '.'); ?></h3>
-                        <small><?php echo formatPercentage($stats['inadimplentes'] * 100 / max($stats['total'], 1), 1); ?></small>
+                        <h6 class="mb-3"><i class="bi bi-exclamation-triangle"></i> Inadimplentes</h6>
+                        <h3 class="mb-2"><?php echo number_format($stats['total_inadimplentes'], 0, ',', '.'); ?></h3>
+                        <small>
+                            Taxa: <?php echo formatPercentage($stats['total_inadimplentes'] * 100 / max($stats['total'], 1), 1); ?><br>
+                            <i class="bi bi-check-circle"></i> <?php echo number_format($stats['inadimplentes_ativos'], 0, ',', '.'); ?> Ativos<br>
+                            <i class="bi bi-lock"></i> <?php echo number_format($stats['inadimplentes_bloqueados'], 0, ',', '.'); ?> Bloqueados
+                        </small>
                     </div>
                 </div>
             </div>
-            <div class="col-md-4">
-                <div class="card text-white bg-dark">
+
+            <!-- Card 3: Valor Total Vendido -->
+            <div class="col-md-3">
+                <div class="card text-white bg-success h-100">
                     <div class="card-body">
-                        <h6>Valor em Risco</h6>
-                        <h3><?php echo formatCurrency($stats['valor_perdido'] ?? 0); ?></h3>
+                        <h6 class="mb-3"><i class="bi bi-cash-stack"></i> Valor Total</h6>
+                        <h4 class="mb-2"><?php echo formatCurrency($stats['valor_total_vendido'] ?? 0); ?></h4>
+                        <small>
+                            <i class="bi bi-check"></i> Recebido: <?php echo formatCurrency($stats['valor_total_recebido'] ?? 0); ?><br>
+                            <i class="bi bi-clock"></i> Restante: <?php echo formatCurrency($stats['valor_total_restante'] ?? 0); ?>
+                        </small>
                     </div>
                 </div>
+            </div>
+
+            <!-- Card 4: Valor em Risco / Perdido / A Receber (contextual) -->
+            <div class="col-md-3">
+                <?php if ($filtroTitulo == 'Cancelado'): ?>
+                    <!-- Filtro de Cancelado: Mostrar Valor Perdido -->
+                    <div class="card text-white bg-secondary h-100">
+                        <div class="card-body">
+                            <h6 class="mb-3"><i class="bi bi-trash"></i> Valor Perdido</h6>
+                            <h4 class="mb-2"><?php echo formatCurrency($stats['valor_perdido'] ?? 0); ?></h4>
+                            <small>Títulos cancelados que não serão mais pagos</small>
+                        </div>
+                    </div>
+                <?php elseif ($filtroStatus == 'ADIMPLENTE'): ?>
+                    <!-- Filtro de Adimplente: Mostrar Valor a Receber -->
+                    <div class="card text-white bg-info h-100">
+                        <div class="card-body">
+                            <h6 class="mb-3"><i class="bi bi-hourglass-split"></i> Valor a Receber</h6>
+                            <h4 class="mb-2"><?php echo formatCurrency($stats['valor_a_receber_adimplente'] ?? 0); ?></h4>
+                            <small>
+                                <i class="bi bi-check-circle"></i> Recebido: <?php echo formatCurrency($stats['valor_total_recebido'] ?? 0); ?><br>
+                                Risco: R$ 0,00
+                            </small>
+                        </div>
+                    </div>
+                <?php else: ?>
+                    <!-- Padrão: Mostrar Valor em Risco -->
+                    <div class="card text-white bg-dark h-100">
+                        <div class="card-body">
+                            <h6 class="mb-3"><i class="bi bi-shield-exclamation"></i> Valor em Risco</h6>
+                            <h4 class="mb-2"><?php echo formatCurrency($stats['valor_em_risco'] ?? 0); ?></h4>
+                            <small>
+                                Saldo restante apenas de inadimplentes<br>
+                                <?php
+                                $percRisco = $stats['valor_total_vendido'] > 0
+                                    ? ($stats['valor_em_risco'] / $stats['valor_total_vendido']) * 100
+                                    : 0;
+                                ?>
+                                <?php echo number_format($percRisco, 2, ',', '.'); ?>% do total vendido
+                            </small>
+                        </div>
+                    </div>
+                <?php endif; ?>
             </div>
         </div>
 
