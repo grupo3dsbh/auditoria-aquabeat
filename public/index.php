@@ -121,7 +121,7 @@ if ($ultimaImportacao) {
           {$whereUsadoRelatorios}
         GROUP BY promotor
         HAVING COUNT(*) >= 3 AND total_inadimplentes > 0
-        ORDER BY taxa_inadimplencia DESC, total_inadimplentes DESC
+        ORDER BY total_inadimplentes DESC, taxa_inadimplencia DESC
         LIMIT 10
     ", [$importacaoId, $dataInicio . ' 00:00:00', $dataFim . ' 23:59:59']);
 }

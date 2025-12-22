@@ -532,7 +532,15 @@ if ($viewCartoes):
                 SUM(CASE WHEN status_inadimplencia LIKE 'INADIMPLENTE%' THEN 1 ELSE 0 END) as inadimplentes,
                 SUM(CASE WHEN status_titulo IN ('Bloqueado', 'Cancelado') THEN 1 ELSE 0 END) as bloqueados,
                 ROUND(100.0 * SUM(CASE WHEN status_inadimplencia LIKE 'INADIMPLENTE%' THEN 1 ELSE 0 END) / COUNT(*), 1) as taxa_inadimplencia,
-                ROUND(100.0 * SUM(CASE WHEN status_titulo IN ('Bloqueado', 'Cancelado') THEN 1 ELSE 0 END) / COUNT(*), 1) as taxa_bloqueio
+                ROUND(100.0 * SUM(CASE WHEN status_titulo IN ('Bloqueado', 'Cancelado') THEN 1 ELSE 0 END) / COUNT(*), 1) as taxa_bloqueio,
+                (SELECT numero_titulo FROM titulos t2
+                 WHERE t2.numero_cartao = titulos.numero_cartao
+                   AND t2.promotor = titulos.promotor
+                 ORDER BY t2.data_primeira_venda DESC LIMIT 1) as ultima_venda_id,
+                (SELECT DATE_FORMAT(data_primeira_venda, '%d/%m/%Y') FROM titulos t2
+                 WHERE t2.numero_cartao = titulos.numero_cartao
+                   AND t2.promotor = titulos.promotor
+                 ORDER BY t2.data_primeira_venda DESC LIMIT 1) as ultima_venda_data
             FROM titulos
             WHERE numero_cartao IS NOT NULL
               AND numero_cartao != ''
@@ -854,7 +862,8 @@ if ($viewCartoes):
                                                 <p class="mb-2"><i class="bi bi-person-fill-exclamation"></i> <strong><?php echo $consultor['cpfs_diferentes']; ?></strong> clientes diferentes</p>
                                                 <p class="mb-2"><i class="bi bi-file-earmark-text"></i> <strong><?php echo $consultor['total_titulos']; ?></strong> títulos vendidos</p>
                                                 <p class="mb-2"><i class="bi bi-exclamation-circle-fill"></i> <strong><?php echo $consultor['taxa_inadimplencia']; ?>%</strong> inadimplência</p>
-                                                <p class="mb-0"><i class="bi bi-x-circle-fill"></i> <strong><?php echo $consultor['taxa_bloqueio']; ?>%</strong> bloqueio</p>
+                                                <p class="mb-2"><i class="bi bi-x-circle-fill"></i> <strong><?php echo $consultor['taxa_bloqueio']; ?>%</strong> bloqueio</p>
+                                                <p class="mb-0"><i class="bi bi-calendar-check"></i> <strong>Última venda:</strong> <?php echo sanitize($consultor['ultima_venda_id']); ?> (<?php echo $consultor['ultima_venda_data']; ?>)</p>
                                             </div>
                                         </div>
                                     </div>
@@ -877,6 +886,7 @@ if ($viewCartoes):
                                             <th class="text-end">Títulos</th>
                                             <th class="text-end">Taxa Inadimp.</th>
                                             <th class="text-end">Taxa Bloq.</th>
+                                            <th>Última Venda</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -898,6 +908,7 @@ if ($viewCartoes):
                                             <td class="text-end"><?php echo $consultor['total_titulos']; ?></td>
                                             <td class="text-end"><strong class="text-danger"><?php echo $consultor['taxa_inadimplencia']; ?>%</strong></td>
                                             <td class="text-end"><strong class="text-warning"><?php echo $consultor['taxa_bloqueio']; ?>%</strong></td>
+                                            <td><small class="text-muted"><?php echo sanitize($consultor['ultima_venda_id']); ?> (<?php echo $consultor['ultima_venda_data']; ?>)</small></td>
                                         </tr>
                                         <?php endforeach; ?>
                                     </tbody>
