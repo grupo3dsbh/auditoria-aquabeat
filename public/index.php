@@ -165,13 +165,13 @@ if ($ultimaImportacao) {
     $topCartoesRisco = $db->fetchAll("
         SELECT
             numero_cartao,
-            bandeira,
+            GROUP_CONCAT(DISTINCT bandeira ORDER BY bandeira SEPARATOR ', ') as bandeira,
             COUNT(*) as total_titulos,
             COUNT(DISTINCT documento_titular) as total_documentos,
-            GROUP_CONCAT(DISTINCT promotor SEPARATOR ', ') as consultores,
+            GROUP_CONCAT(DISTINCT promotor ORDER BY promotor SEPARATOR ', ') as consultores,
             CASE
-                WHEN bandeira LIKE '%DEBITO%' OR bandeira LIKE '%DEBIT%' THEN 'DÉBITO'
-                WHEN bandeira LIKE '%CREDITO%' OR bandeira LIKE '%CREDIT%' THEN 'CRÉDITO'
+                WHEN MAX(CASE WHEN bandeira LIKE '%DEBITO%' OR bandeira LIKE '%DEBIT%' THEN 1 ELSE 0 END) = 1 THEN 'DÉBITO'
+                WHEN MAX(CASE WHEN bandeira LIKE '%CREDITO%' OR bandeira LIKE '%CREDIT%' THEN 1 ELSE 0 END) = 1 THEN 'CRÉDITO'
                 ELSE 'DESCONHECIDO'
             END as tipo_cartao,
             CASE
@@ -186,10 +186,10 @@ if ($ultimaImportacao) {
           AND numero_cartao != ''
           AND numero_cartao != 'NULL'
           {$whereUsadoRelatorios}
-        GROUP BY numero_cartao, bandeira
+        GROUP BY numero_cartao
         HAVING COUNT(*) >= 2
         ORDER BY
-            CASE WHEN bandeira LIKE '%DEBITO%' OR bandeira LIKE '%DEBIT%' THEN 0 ELSE 1 END,
+            MAX(CASE WHEN bandeira LIKE '%DEBITO%' OR bandeira LIKE '%DEBIT%' THEN 1 ELSE 0 END) DESC,
             COUNT(*) DESC
         LIMIT 5
     ", [$importacaoId, $dataInicio . ' 00:00:00', $dataFim . ' 23:59:59']);
