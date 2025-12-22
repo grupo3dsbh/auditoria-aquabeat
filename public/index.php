@@ -20,22 +20,37 @@ $stats = [];
 if ($ultimaImportacao) {
     $importacaoId = $ultimaImportacao['id'];
 
+    // IMPORTANTE: Verificar se coluna usado_relatorios existe e criar filtro apropriado
+    $whereUsadoRelatorios = "";
+    try {
+        $colunaExiste = $db->fetchColumn("SHOW COLUMNS FROM titulos LIKE 'usado_relatorios'");
+        if ($colunaExiste) {
+            $whereUsadoRelatorios = " AND usado_relatorios = TRUE";
+        } else {
+            // Fallback: filtrar apenas SFA/SBF se coluna não existir
+            $whereUsadoRelatorios = " AND (numero_titulo LIKE 'SFA%' OR numero_titulo LIKE 'SBF%')";
+        }
+    } catch (Exception $e) {
+        // Em caso de erro, usar filtro SFA/SBF
+        $whereUsadoRelatorios = " AND (numero_titulo LIKE 'SFA%' OR numero_titulo LIKE 'SBF%')";
+    }
+
     $stats = [
         'total_titulos' => $db->fetchColumn(
-            "SELECT COUNT(*) FROM titulos WHERE importacao_id = ? AND data_primeira_venda BETWEEN ? AND ?",
+            "SELECT COUNT(*) FROM titulos WHERE importacao_id = ? AND data_primeira_venda BETWEEN ? AND ? {$whereUsadoRelatorios}",
             [$importacaoId, $dataInicio . ' 00:00:00', $dataFim . ' 23:59:59']
         ) ?? 0,
         'total_inadimplentes' => $db->fetchColumn(
-            "SELECT COUNT(*) FROM titulos WHERE importacao_id = ? AND status_inadimplencia LIKE 'INADIMPLENTE%' AND data_primeira_venda BETWEEN ? AND ?",
+            "SELECT COUNT(*) FROM titulos WHERE importacao_id = ? AND status_inadimplencia LIKE 'INADIMPLENTE%' AND data_primeira_venda BETWEEN ? AND ? {$whereUsadoRelatorios}",
             [$importacaoId, $dataInicio . ' 00:00:00', $dataFim . ' 23:59:59']
         ) ?? 0,
         'total_consultores' => $db->fetchColumn(
-            "SELECT COUNT(DISTINCT promotor) FROM titulos WHERE importacao_id = ? AND data_primeira_venda BETWEEN ? AND ? AND promotor IS NOT NULL",
+            "SELECT COUNT(DISTINCT promotor) FROM titulos WHERE importacao_id = ? AND data_primeira_venda BETWEEN ? AND ? AND promotor IS NOT NULL {$whereUsadoRelatorios}",
             [$importacaoId, $dataInicio . ' 00:00:00', $dataFim . ' 23:59:59']
         ) ?? 0,
         'total_cartoes_risco' => $db->count('analise_cartoes', "importacao_id = ? AND nivel_risco IN ('ALTO RISCO', 'FRAUDE PROVÁVEL')", [$importacaoId]),
         'valor_em_risco' => $db->fetchColumn(
-            "SELECT SUM(saldo_restante) FROM titulos WHERE importacao_id = ? AND status_inadimplencia LIKE 'INADIMPLENTE%' AND data_primeira_venda BETWEEN ? AND ?",
+            "SELECT SUM(saldo_restante) FROM titulos WHERE importacao_id = ? AND status_inadimplencia LIKE 'INADIMPLENTE%' AND data_primeira_venda BETWEEN ? AND ? {$whereUsadoRelatorios}",
             [$importacaoId, $dataInicio . ' 00:00:00', $dataFim . ' 23:59:59']
         ) ?? 0,
         'taxa_inadimplencia' => 0,
@@ -45,26 +60,26 @@ if ($ultimaImportacao) {
             "SELECT COUNT(*) FROM titulos
              WHERE importacao_id = ? AND data_primeira_venda BETWEEN ? AND ?
              AND (bandeira LIKE '%CREDITO%' OR bandeira LIKE '%CREDIT%')
-             AND status_inadimplencia = 'ADIMPLENTE'",
+             AND status_inadimplencia = 'ADIMPLENTE' {$whereUsadoRelatorios}",
             [$importacaoId, $dataInicio . ' 00:00:00', $dataFim . ' 23:59:59']
         ) ?? 0,
         'credito_1a_parcela' => $db->fetchColumn(
             "SELECT COUNT(*) FROM titulos
              WHERE importacao_id = ? AND data_primeira_venda BETWEEN ? AND ?
              AND (bandeira LIKE '%CREDITO%' OR bandeira LIKE '%CREDIT%')
-             AND status_inadimplencia LIKE '%1ª parcela%'",
+             AND status_inadimplencia LIKE '%1ª parcela%' {$whereUsadoRelatorios}",
             [$importacaoId, $dataInicio . ' 00:00:00', $dataFim . ' 23:59:59']
         ) ?? 0,
         'debito_total' => $db->fetchColumn(
             "SELECT COUNT(*) FROM titulos
              WHERE importacao_id = ? AND data_primeira_venda BETWEEN ? AND ?
-             AND (bandeira LIKE '%DEBITO%' OR bandeira LIKE '%DEBIT%')",
+             AND (bandeira LIKE '%DEBITO%' OR bandeira LIKE '%DEBIT%') {$whereUsadoRelatorios}",
             [$importacaoId, $dataInicio . ' 00:00:00', $dataFim . ' 23:59:59']
         ) ?? 0,
         'pix_total' => $db->fetchColumn(
             "SELECT COUNT(*) FROM titulos
              WHERE importacao_id = ? AND data_primeira_venda BETWEEN ? AND ?
-             AND (bandeira LIKE '%PIX%' OR bandeira LIKE '%CARTEIRA%')",
+             AND (bandeira LIKE '%PIX%' OR bandeira LIKE '%CARTEIRA%') {$whereUsadoRelatorios}",
             [$importacaoId, $dataInicio . ' 00:00:00', $dataFim . ' 23:59:59']
         ) ?? 0,
         'outras_formas' => $db->fetchColumn(
@@ -72,7 +87,7 @@ if ($ultimaImportacao) {
              WHERE importacao_id = ? AND data_primeira_venda BETWEEN ? AND ?
              AND bandeira NOT LIKE '%CREDITO%' AND bandeira NOT LIKE '%CREDIT%'
              AND bandeira NOT LIKE '%DEBITO%' AND bandeira NOT LIKE '%DEBIT%'
-             AND bandeira NOT LIKE '%PIX%' AND bandeira NOT LIKE '%CARTEIRA%'",
+             AND bandeira NOT LIKE '%PIX%' AND bandeira NOT LIKE '%CARTEIRA%' {$whereUsadoRelatorios}",
             [$importacaoId, $dataInicio . ' 00:00:00', $dataFim . ' 23:59:59']
         ) ?? 0
     ];
@@ -107,6 +122,7 @@ if ($ultimaImportacao) {
         WHERE importacao_id = ?
           AND data_primeira_venda BETWEEN ? AND ?
           AND promotor IS NOT NULL
+          {$whereUsadoRelatorios}
         GROUP BY promotor
         HAVING COUNT(*) >= 3 AND total_inadimplentes > 0
         ORDER BY total_inadimplentes DESC, taxa_inadimplencia DESC
@@ -135,6 +151,7 @@ if ($ultimaImportacao) {
         WHERE importacao_id = ?
           AND data_primeira_venda BETWEEN ? AND ?
           AND promotor IS NOT NULL
+          {$whereUsadoRelatorios}
         GROUP BY promotor
         HAVING (vendas_debito > 0 OR vendas_pix > 0) AND problemas_debito_pix > 0
         ORDER BY problemas_debito_pix DESC, taxa_risco DESC
@@ -168,6 +185,7 @@ if ($ultimaImportacao) {
           AND numero_cartao IS NOT NULL
           AND numero_cartao != ''
           AND numero_cartao != 'NULL'
+          {$whereUsadoRelatorios}
         GROUP BY numero_cartao, bandeira
         HAVING COUNT(*) >= 2
         ORDER BY
