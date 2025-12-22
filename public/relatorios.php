@@ -674,8 +674,8 @@ if ($viewCartoes):
                 </div>
             </div>
 
-            <!-- Análise com IA -->
-            <?php if (getConfig('api_ia_key')): ?>
+            <!-- Análise com IA (apenas para gerente/admin) -->
+            <?php if (getConfig('api_ia_key') && Auth::hasRole('gerente')): ?>
             <div class="row mb-4">
                 <div class="col-md-12">
                     <div class="card border-info">

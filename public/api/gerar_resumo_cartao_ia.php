@@ -60,7 +60,7 @@ try {
             AVG(dias_desde_venda) as media_dias_venda,
 
             -- Valores
-            SUM(valor_total) as valor_total_vendas,
+            SUM(valor_total_plano) as valor_total_vendas,
             SUM(saldo_restante) as saldo_total_restante,
             SUM(CASE WHEN status_inadimplencia LIKE 'INADIMPLENTE%' THEN saldo_restante ELSE 0 END) as valor_risco,
 
@@ -142,151 +142,149 @@ try {
 exit;
 
 function gerarResumoCartao($numeroCartao, $stats, $taxaInadimplencia, $taxaBloqueio, $usoConsultores, $documentosDiferentes) {
-    $resumo = "💳 **ANÁLISE COMPORTAMENTAL DO CARTÃO**\n\n";
+    $resumo = "💳 **ANÁLISE DO CARTÃO**\n\n";
 
     // Informações básicas
-    $resumo .= "**📋 INFORMAÇÕES GERAIS:**\n";
-    $resumo .= sprintf("• Cartão: %s\n", $numeroCartao);
-    $resumo .= sprintf("• Tipo: %s | Bandeiras: %s\n", $stats['tipo_cartao'], $stats['bandeiras']);
+    $resumo .= "**📋 DADOS GERAIS:**\n";
+    $resumo .= sprintf("• Cartão: %s (%s)\n", $numeroCartao, $stats['tipo_cartao']);
+    $resumo .= sprintf("• Bandeira(s): %s\n", $stats['bandeiras']);
     $resumo .= sprintf("• Total de títulos: %s\n", number_format($stats['total_titulos'], 0, ',', '.'));
-    $resumo .= sprintf("• Documentos diferentes: %s\n", number_format($stats['total_documentos'], 0, ',', '.'));
-    $resumo .= sprintf("• Consultores envolvidos: %s\n\n", number_format($stats['total_consultores'], 0, ',', '.'));
+    $resumo .= sprintf("• CPFs diferentes: %s\n", number_format($stats['total_documentos'], 0, ',', '.'));
+    $resumo .= sprintf("• Consultores: %s\n\n", number_format($stats['total_consultores'], 0, ',', '.'));
 
-    // Análise de risco
+    // Análise de risco - Critérios mais realistas
     $nivelRisco = 'BAIXO';
-    if ($stats['total_documentos'] >= 5 || $taxaInadimplencia >= 50 || $taxaBloqueio >= 40 || $stats['tipo_cartao'] == 'DÉBITO') {
+    $pontosRisco = 0;
+
+    // Pontuação de risco
+    if ($stats['total_documentos'] >= 5) $pontosRisco += 3;
+    elseif ($stats['total_documentos'] >= 3) $pontosRisco += 1;
+
+    if ($taxaInadimplencia >= 60) $pontosRisco += 3;
+    elseif ($taxaInadimplencia >= 40) $pontosRisco += 2;
+    elseif ($taxaInadimplencia >= 25) $pontosRisco += 1;
+
+    if ($taxaBloqueio >= 50) $pontosRisco += 2;
+    elseif ($taxaBloqueio >= 30) $pontosRisco += 1;
+
+    if ($stats['tipo_cartao'] == 'DÉBITO' && $stats['total_documentos'] >= 3) $pontosRisco += 2;
+
+    // Definir nível baseado em pontos
+    if ($pontosRisco >= 5) {
         $nivelRisco = 'ALTO';
-    } elseif ($stats['total_documentos'] >= 3 || $taxaInadimplencia >= 30 || $taxaBloqueio >= 25) {
+    } elseif ($pontosRisco >= 2) {
         $nivelRisco = 'MÉDIO';
     }
 
     $resumo .= "**🎯 ANÁLISE DE RISCO:**\n";
-    $resumo .= sprintf("• Nível de Risco: **%s** %s\n",
+    $resumo .= sprintf("• **Nível:** %s %s (pontuação: %d)\n",
         $nivelRisco,
-        $nivelRisco == 'ALTO' ? '🚨' : ($nivelRisco == 'MÉDIO' ? '⚠️' : '✅')
+        $nivelRisco == 'ALTO' ? '🚨' : ($nivelRisco == 'MÉDIO' ? '⚠️' : '✅'),
+        $pontosRisco
     );
-    $resumo .= sprintf("• Taxa de inadimplência: %.1f%% (%s/%s)\n",
+    $resumo .= sprintf("• **Inadimplência:** %.1f%% (%d de %d títulos)\n",
         $taxaInadimplencia,
-        number_format($stats['total_inadimplentes'], 0, ',', '.'),
-        number_format($stats['total_titulos'], 0, ',', '.')
+        $stats['total_inadimplentes'],
+        $stats['total_titulos']
     );
-    $resumo .= sprintf("• Taxa de bloqueio: %.1f%% (%s/%s)\n",
+    $resumo .= sprintf("• **Bloqueios:** %.1f%% (%d de %d títulos)\n",
         $taxaBloqueio,
-        number_format($stats['titulos_bloqueados'], 0, ',', '.'),
-        number_format($stats['total_titulos'], 0, ',', '.')
+        $stats['titulos_bloqueados'],
+        $stats['total_titulos']
     );
-    $resumo .= sprintf("• Valor em risco: R$ %s\n\n", number_format($stats['valor_risco'], 2, ',', '.'));
+    $resumo .= sprintf("• **Valor em risco:** R$ %s\n\n", number_format($stats['valor_risco'], 2, ',', '.'));
 
     // Padrões identificados
-    $resumo .= "**🔍 PADRÕES IDENTIFICADOS:**\n\n";
+    $alertas = [];
 
     // Padrão 1: Múltiplos documentos
-    if ($stats['total_documentos'] >= 3) {
-        $resumo .= "⚠️ **USO COMPARTILHADO DETECTADO**\n";
-        $resumo .= sprintf("   • Mesmo cartão usado para %s CPFs diferentes\n", $stats['total_documentos']);
-        $resumo .= "   • Padrão: Indica possível compartilhamento indevido ou documentação irregular\n";
-        $resumo .= "   💡 **Ação recomendada:**\n";
-        $resumo .= "      - Investigar relação entre os titulares\n";
-        $resumo .= "      - Verificar se todos os CPFs são legítimos e ativos\n";
-        $resumo .= "      - Validar titularidade do cartão com operadora\n";
-        $resumo .= "      - Revisar processo de validação de documentos\n\n";
+    if ($stats['total_documentos'] >= 5) {
+        $alertas[] = sprintf("🚨 **USO COMPARTILHADO CRÍTICO:** %d CPFs diferentes", $stats['total_documentos']);
+    } elseif ($stats['total_documentos'] >= 3) {
+        $alertas[] = sprintf("⚠️ **Múltiplos CPFs:** %d titulares diferentes", $stats['total_documentos']);
     }
 
     // Padrão 2: Múltiplos consultores
-    if ($stats['total_consultores'] >= 2) {
-        $resumo .= "⚠️ **MÚLTIPLOS CONSULTORES**\n";
-        $resumo .= sprintf("   • Cartão usado por %s consultores diferentes\n", $stats['total_consultores']);
-        if ($stats['total_consultores'] >= 3) {
-            $resumo .= "   • Padrão: Possível rede organizada ou compartilhamento entre consultores\n";
-            $resumo .= "   💡 **Ação recomendada:**\n";
-            $resumo .= "      - Investigar relação entre consultores\n";
-            $resumo .= "      - Verificar se há padrão geográfico comum\n";
-            $resumo .= "      - Analisar histórico individual de cada consultor\n";
-            $resumo .= "      - Considerar auditoria nos processos de vendas\n\n";
-        } else {
-            $resumo .= "   💡 **Ação recomendada:**\n";
-            $resumo .= "      - Verificar se há relação entre os consultores\n";
-            $resumo .= "      - Validar legitimidade das vendas\n\n";
-        }
+    if ($stats['total_consultores'] >= 3) {
+        $alertas[] = sprintf("⚠️ **Múltiplos consultores:** %d consultores usaram este cartão", $stats['total_consultores']);
     }
 
     // Padrão 3: Tipo de cartão
-    if ($stats['tipo_cartao'] == 'DÉBITO') {
-        $resumo .= "🚨 **CARTÃO DE DÉBITO - ALTO RISCO**\n";
-        $resumo .= "   • Padrão: Cartões de débito têm maior risco de bloqueio rápido\n";
-        $resumo .= "   • Motivo: Cliente pode bloquear cartão imediatamente após uso\n";
-        $resumo .= "   💡 **Ação recomendada:**\n";
-        $resumo .= "      - Priorizar validação de identidade ANTES da venda\n";
-        $resumo .= "      - Exigir comprovante de titularidade do cartão\n";
-        $resumo .= "      - Implementar autenticação 3DS (3-D Secure)\n";
-        $resumo .= "      - Considerar limitar vendas em débito para novos clientes\n\n";
+    if ($stats['tipo_cartao'] == 'DÉBITO' && $stats['total_documentos'] >= 3) {
+        $alertas[] = "🚨 **DÉBITO + Múltiplos CPFs:** Combinação de alto risco";
+    } elseif ($stats['tipo_cartao'] == 'DÉBITO' && $taxaBloqueio >= 30) {
+        $alertas[] = "⚠️ **DÉBITO com bloqueios:** Cartão de débito com alta taxa de bloqueio";
     }
 
     // Padrão 4: Bloqueios rápidos
     if ($stats['bloqueios_rapidos'] > 0) {
         $percBloqueiosRapidos = round(($stats['bloqueios_rapidos'] / $stats['total_titulos']) * 100, 1);
-        $resumo .= "🚨 **BLOQUEIOS RÁPIDOS DETECTADOS**\n";
-        $resumo .= sprintf("   • %s títulos bloqueados em 30 dias (%.1f%%)\n",
-            $stats['bloqueios_rapidos'],
-            $percBloqueiosRapidos
-        );
-        $resumo .= "   • Padrão: Indica possível uso não autorizado ou contestação\n";
-        $resumo .= "   💡 **Ação recomendada:**\n";
-        $resumo .= "      - Contatar operadora para verificar contestações\n";
-        $resumo .= "      - Bloquear uso futuro deste cartão no sistema\n";
-        $resumo .= "      - Revisar processo de autorização de vendas\n\n";
+        if ($percBloqueiosRapidos >= 30) {
+            $alertas[] = sprintf("🚨 **Bloqueios rápidos:** %d títulos bloqueados em até 30 dias (%.1f%%)",
+                $stats['bloqueios_rapidos'], $percBloqueiosRapidos);
+        }
     }
 
-    // Análise por consultor
-    if (count($usoConsultores) > 0) {
-        $resumo .= "**👥 USO POR CONSULTOR:**\n";
-        foreach ($usoConsultores as $i => $uso) {
-            $resumo .= sprintf("%d. **%s**\n", $i + 1, $uso['promotor']);
-            $resumo .= sprintf("   • Títulos: %s | Clientes diferentes: %s\n",
-                $uso['total_titulos'],
-                $uso['clientes_diferentes']
-            );
-            $resumo .= sprintf("   • Inadimplência: %.1f%% | Bloqueios: %.1f%%",
-                $uso['taxa_inadimplencia'],
-                $uso['taxa_bloqueio']
-            );
+    // Padrão 5: Alta inadimplência
+    if ($taxaInadimplencia >= 60) {
+        $alertas[] = sprintf("🚨 **Alta inadimplência:** %.1f%% dos títulos", $taxaInadimplencia);
+    } elseif ($taxaInadimplencia >= 40) {
+        $alertas[] = sprintf("⚠️ **Inadimplência elevada:** %.1f%% dos títulos", $taxaInadimplencia);
+    }
 
-            if ($uso['clientes_diferentes'] >= 3) {
-                $resumo .= " 🚨 **ALERTA: Múltiplos clientes**";
-            } elseif ($uso['taxa_bloqueio'] >= 50) {
-                $resumo .= " ⚠️ **ALERTA: Alta taxa bloqueio**";
+    if (count($alertas) > 0) {
+        $resumo .= "**🔍 ALERTAS:**\n";
+        foreach ($alertas as $alerta) {
+            $resumo .= "• " . $alerta . "\n";
+        }
+        $resumo .= "\n";
+    } else {
+        $resumo .= "**🔍 ALERTAS:** Nenhum padrão crítico identificado\n\n";
+    }
+
+    // Análise por consultor (máximo 5)
+    if (count($usoConsultores) > 0) {
+        $resumo .= "**👥 CONSULTORES:**\n";
+        $topConsultores = array_slice($usoConsultores, 0, 5);
+        foreach ($topConsultores as $i => $uso) {
+            $alerta = '';
+            if ($uso['clientes_diferentes'] >= 5) {
+                $alerta = ' 🚨';
+            } elseif ($uso['clientes_diferentes'] >= 3) {
+                $alerta = ' ⚠️';
             }
-            $resumo .= "\n";
+            $resumo .= sprintf("• **%s**: %d títulos, %d CPFs, inadimp. %.1f%%%s\n",
+                $uso['promotor'],
+                $uso['total_titulos'],
+                $uso['clientes_diferentes'],
+                $uso['taxa_inadimplencia'],
+                $alerta
+            );
         }
         $resumo .= "\n";
     }
 
-    // Recomendações finais
-    $resumo .= "**🚀 PLANO DE AÇÃO IMEDIATO:**\n\n";
+    // Recomendações finais - mais concisas
+    $resumo .= "**💡 RECOMENDAÇÕES:**\n";
 
     if ($nivelRisco == 'ALTO') {
-        $resumo .= "**PRIORIDADE ALTA - AÇÃO IMEDIATA:**\n";
-        $resumo .= "1. ⛔ **BLOQUEAR** este cartão no sistema para novos títulos\n";
-        $resumo .= "2. 🔍 **INVESTIGAR** todos os títulos relacionados em detalhes\n";
-        $resumo .= "3. 📞 **CONTATAR** operadora do cartão para validar transações\n";
-        $resumo .= "4. 📋 **AUDITAR** consultores envolvidos e processos de venda\n";
-        $resumo .= "5. ⚖️ **AVALIAR** possibilidade de medidas legais se confirmada irregularidade\n\n";
+        $resumo .= "1. ⛔ Bloquear cartão para novas vendas\n";
+        $resumo .= "2. 🔍 Investigar títulos e consultores envolvidos\n";
+        $resumo .= "3. 📞 Contatar operadora para validar transações\n";
+        if ($stats['total_documentos'] >= 5) {
+            $resumo .= "4. 📋 Auditar relação entre os " . $stats['total_documentos'] . " CPFs diferentes\n";
+        }
     } elseif ($nivelRisco == 'MÉDIO') {
-        $resumo .= "**PRIORIDADE MÉDIA - MONITORAMENTO:**\n";
-        $resumo .= "1. 👀 **MONITORAR** uso futuro deste cartão atentamente\n";
-        $resumo .= "2. ✅ **VALIDAR** próximas vendas com verificação extra\n";
-        $resumo .= "3. 📊 **REVISAR** histórico dos consultores envolvidos\n";
-        $resumo .= "4. 📝 **DOCUMENTAR** padrões para referência futura\n\n";
+        $resumo .= "1. 👀 Monitorar uso futuro deste cartão\n";
+        $resumo .= "2. ✅ Exigir validação extra em próximas vendas\n";
+        $resumo .= "3. 📊 Revisar histórico dos consultores\n";
     } else {
-        $resumo .= "**PRIORIDADE BAIXA - ACOMPANHAMENTO:**\n";
-        $resumo .= "1. 📊 **ACOMPANHAR** evolução dos títulos ativos\n";
-        $resumo .= "2. ✅ **MANTER** processos padrão de validação\n";
-        $resumo .= "3. 📈 **MONITORAR** indicadores periodicamente\n\n";
+        $resumo .= "1. 📊 Acompanhar evolução dos títulos ativos\n";
+        $resumo .= "2. 📈 Monitorar indicadores periodicamente\n";
     }
 
-    $resumo .= "---\n";
-    $resumo .= "💡 **Nota:** Esta análise é baseada em padrões comportamentais identificados automaticamente. ";
-    $resumo .= "Recomenda-se sempre validação humana antes de tomar decisões críticas.\n";
+    $resumo .= "\n---\n";
+    $resumo .= "_Análise automatizada baseada em padrões. Validação humana recomendada._";
 
     return $resumo;
 }
