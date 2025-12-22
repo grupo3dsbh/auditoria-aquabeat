@@ -63,29 +63,29 @@ class InadimplenciaHelper {
             return 'ADIMPLENTE';
         }
 
-        // REGRA CRÍTICA: Só considera INADIMPLENTE se tiver 2 OU MAIS parcelas em atraso
-        // Com apenas 1 parcela em atraso ainda é considerado ADIMPLENTE
+        // REGRA CRÍTICA: Só considera INADIMPLENTE se tiver 3 OU MAIS parcelas em atraso
+        // Com 1 ou 2 parcelas em atraso ainda é considerado ADIMPLENTE
         $parcelasEmAtraso = max(0, $parcelasEsperadas - $parcelasPagas);
 
-        // Se está em dia OU tem apenas 1 parcela em atraso = ADIMPLENTE
-        if ($parcelasEmAtraso <= 1) {
+        // Se está em dia OU tem apenas 1 ou 2 parcelas em atraso = ADIMPLENTE
+        if ($parcelasEmAtraso <= 2) {
             return 'ADIMPLENTE';
         }
 
-        // Se chegou aqui, tem 2 ou mais parcelas em atraso = INADIMPLENTE
+        // Se chegou aqui, tem 3 ou mais parcelas em atraso = INADIMPLENTE
         // Classificar por TEMPO DE INADIMPLÊNCIA
 
-        // Calcular meses em atraso (já sabemos que tem pelo menos 2)
+        // Calcular meses em atraso (já sabemos que tem pelo menos 3)
         $mesesEmAtraso = $parcelasEmAtraso;
 
         // Caso especial: Apenas 1ª parcela paga (requer análise - pode ser premiação)
-        // Já sabemos que tem pelo menos 2 parcelas em atraso
+        // Já sabemos que tem pelo menos 3 parcelas em atraso
         if ($parcelasPagas == 1) {
             return 'INADIMPLENTE - Requer análise (1ª parcela)';
         }
 
         // Caso especial: Apenas 2 parcelas pagas (requer análise - pode ser premiação)
-        // Já sabemos que tem pelo menos 2 parcelas em atraso
+        // Já sabemos que tem pelo menos 3 parcelas em atraso
         if ($parcelasPagas == 2) {
             return 'INADIMPLENTE - Requer análise (2 parcelas)';
         }
