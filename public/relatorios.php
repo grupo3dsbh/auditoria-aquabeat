@@ -36,17 +36,10 @@ $where[] = "data_primeira_venda <= ?";
 $params[] = $dataFim . ' 23:59:59';
 $filtros['data_fim'] = $dataFim;
 
-// Filtro por prefixo do título (padrão: SBF, SFA)
-$prefixos = !empty($_GET['prefixos']) ? $_GET['prefixos'] : ['SBF', 'SFA'];
-if (!empty($prefixos)) {
-    $prefixoConditions = [];
-    foreach ($prefixos as $prefixo) {
-        $prefixoConditions[] = "numero_titulo LIKE ?";
-        $params[] = $prefixo . '%';
-    }
-    $where[] = '(' . implode(' OR ', $prefixoConditions) . ')';
-    $filtros['prefixos'] = $prefixos;
-}
+// IMPORTANTE: Considerar APENAS SFA e SBF (outros prefixos são ignorados)
+// Este filtro é SEMPRE aplicado e não pode ser removido
+$where[] = "(numero_titulo LIKE 'SFA%' OR numero_titulo LIKE 'SBF%')";
+$filtros['prefixos'] = ['SFA', 'SBF'];
 
 if (!empty($_GET['status_titulo'])) {
     $where[] = "status_titulo = ?";
