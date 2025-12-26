@@ -1833,64 +1833,71 @@ endif;
                     <strong>Nova classificação:</strong> identifica em qual etapa o cliente parou de pagar para análise de comportamento e estratégias de reativação.
                 </p>
 
-                <div class="row g-2">
+                <div class="row g-2" id="legendaFiltros">
                     <!-- Categoria "REQUER ANÁLISE" -->
                     <div class="col-md-4">
-                        <a href="?status_inadimplencia_categoria=requer_analise<?php echo isset($_GET['data_inicio']) ? '&data_inicio=' . urlencode($_GET['data_inicio']) : ''; ?><?php echo isset($_GET['data_fim']) ? '&data_fim=' . urlencode($_GET['data_fim']) : ''; ?>" class="text-decoration-none">
-                            <div class="p-2 border rounded text-center" style="background-color: #ffc107; color: #000; font-weight: 600; cursor: pointer;">
-                                <small><strong>REQUER ANÁLISE</strong><br>
-                                <span class="text-muted">1ª, 2ª parcela ou até 3 meses</span><br>
-                                <span class="badge bg-dark mt-1"><?php echo number_format($contadores['requer_analise'], 0, ',', '.'); ?> títulos</span></small>
-                            </div>
-                        </a>
+                        <div class="p-2 border rounded text-center legenda-card"
+                             style="background-color: #ffc107; color: #000; font-weight: 600; cursor: pointer;"
+                             onclick="filtrarPorCategoria('requer_analise', this)">
+                            <small><strong>REQUER ANÁLISE</strong><br>
+                            <span class="text-muted">1ª, 2ª parcela ou até 3 meses</span><br>
+                            <span class="badge bg-dark mt-1"><?php echo number_format($contadores['requer_analise'], 0, ',', '.'); ?> títulos</span></small>
+                        </div>
                     </div>
                     <div class="col-md-3">
-                        <a href="?status_inadimplencia=INADIMPLENTE - 3 a 6 meses<?php echo isset($_GET['data_inicio']) ? '&data_inicio=' . urlencode($_GET['data_inicio']) : ''; ?><?php echo isset($_GET['data_fim']) ? '&data_fim=' . urlencode($_GET['data_fim']) : ''; ?>" class="text-decoration-none">
-                            <div class="p-2 border rounded text-center" style="background-color: #ff9800; color: white; cursor: pointer;">
-                                <small><strong>3 a 6 meses</strong><br>
-                                <span style="opacity: 0.9;">Experiência</span><br>
-                                <span class="badge bg-dark mt-1"><?php echo number_format($contadores['tres_seis'], 0, ',', '.'); ?> títulos</span></small>
-                            </div>
-                        </a>
+                        <div class="p-2 border rounded text-center legenda-card"
+                             style="background-color: #ff9800; color: white; cursor: pointer;"
+                             onclick="filtrarPorCategoria('tres_seis', this)">
+                            <small><strong>3 a 6 meses</strong><br>
+                            <span style="opacity: 0.9;">Experiência</span><br>
+                            <span class="badge bg-dark mt-1"><?php echo number_format($contadores['tres_seis'], 0, ',', '.'); ?> títulos</span></small>
+                        </div>
                     </div>
                     <div class="col-md-3">
-                        <a href="?status_inadimplencia=INADIMPLENTE - 6 a 9 meses<?php echo isset($_GET['data_inicio']) ? '&data_inicio=' . urlencode($_GET['data_inicio']) : ''; ?><?php echo isset($_GET['data_fim']) ? '&data_fim=' . urlencode($_GET['data_fim']) : ''; ?>" class="text-decoration-none">
-                            <div class="p-2 border rounded text-center" style="background-color: #ff6f00; color: white; cursor: pointer;">
-                                <small><strong>6 a 9 meses</strong><br>
-                                <span style="opacity: 0.9;">Expectativa</span><br>
-                                <span class="badge bg-dark mt-1"><?php echo number_format($contadores['seis_nove'], 0, ',', '.'); ?> títulos</span></small>
-                            </div>
-                        </a>
+                        <div class="p-2 border rounded text-center legenda-card"
+                             style="background-color: #ff6f00; color: white; cursor: pointer;"
+                             onclick="filtrarPorCategoria('seis_nove', this)">
+                            <small><strong>6 a 9 meses</strong><br>
+                            <span style="opacity: 0.9;">Expectativa</span><br>
+                            <span class="badge bg-dark mt-1"><?php echo number_format($contadores['seis_nove'], 0, ',', '.'); ?> títulos</span></small>
+                        </div>
                     </div>
                     <div class="col-md-3">
-                        <a href="?status_inadimplencia=INADIMPLENTE - 9 a 12 meses<?php echo isset($_GET['data_inicio']) ? '&data_inicio=' . urlencode($_GET['data_inicio']) : ''; ?><?php echo isset($_GET['data_fim']) ? '&data_fim=' . urlencode($_GET['data_fim']) : ''; ?>" class="text-decoration-none">
-                            <div class="p-2 border rounded text-center" style="background-color: #f44336; color: white; cursor: pointer;">
-                                <small><strong>9 a 12 meses</strong><br>
-                                <span style="opacity: 0.9;">Problema sério</span><br>
-                                <span class="badge bg-dark mt-1"><?php echo number_format($contadores['nove_doze'], 0, ',', '.'); ?> títulos</span></small>
-                            </div>
-                        </a>
+                        <div class="p-2 border rounded text-center legenda-card"
+                             style="background-color: #f44336; color: white; cursor: pointer;"
+                             onclick="filtrarPorCategoria('nove_doze', this)">
+                            <small><strong>9 a 12 meses</strong><br>
+                            <span style="opacity: 0.9;">Problema sério</span><br>
+                            <span class="badge bg-dark mt-1"><?php echo number_format($contadores['nove_doze'], 0, ',', '.'); ?> títulos</span></small>
+                        </div>
                     </div>
                     <div class="col-md-3">
-                        <a href="?status_inadimplencia=INADIMPLENTE - Mais de 12 meses<?php echo isset($_GET['data_inicio']) ? '&data_inicio=' . urlencode($_GET['data_inicio']) : ''; ?><?php echo isset($_GET['data_fim']) ? '&data_fim=' . urlencode($_GET['data_fim']) : ''; ?>" class="text-decoration-none">
-                            <div class="p-2 border rounded text-center" style="background-color: #c62828; color: white; font-weight: bold; cursor: pointer;">
-                                <small><strong>Mais de 12 meses</strong><br>
-                                <span style="opacity: 0.9;">Crônico</span><br>
-                                <span class="badge bg-dark mt-1"><?php echo number_format($contadores['mais_doze'], 0, ',', '.'); ?> títulos</span></small>
-                            </div>
-                        </a>
+                        <div class="p-2 border rounded text-center legenda-card"
+                             style="background-color: #c62828; color: white; font-weight: bold; cursor: pointer;"
+                             onclick="filtrarPorCategoria('mais_doze', this)">
+                            <small><strong>Mais de 12 meses</strong><br>
+                            <span style="opacity: 0.9;">Crônico</span><br>
+                            <span class="badge bg-dark mt-1"><?php echo number_format($contadores['mais_doze'], 0, ',', '.'); ?> títulos</span></small>
+                        </div>
                     </div>
 
                     <!-- Adimplente -->
                     <div class="col-md-3">
-                        <a href="?status_inadimplencia=ADIMPLENTE<?php echo isset($_GET['data_inicio']) ? '&data_inicio=' . urlencode($_GET['data_inicio']) : ''; ?><?php echo isset($_GET['data_fim']) ? '&data_fim=' . urlencode($_GET['data_fim']) : ''; ?>" class="text-decoration-none">
-                            <div class="p-2 border rounded text-center" style="background-color: #4caf50; color: white; cursor: pointer;">
-                                <small><strong>Adimplente</strong><br>
-                                <span style="opacity: 0.9;">Em dia</span><br>
-                                <span class="badge bg-dark mt-1"><?php echo number_format($contadores['adimplente'], 0, ',', '.'); ?> títulos</span></small>
-                            </div>
-                        </a>
+                        <div class="p-2 border rounded text-center legenda-card"
+                             style="background-color: #4caf50; color: white; cursor: pointer;"
+                             onclick="filtrarPorCategoria('adimplente', this)">
+                            <small><strong>Adimplente</strong><br>
+                            <span style="opacity: 0.9;">Em dia</span><br>
+                            <span class="badge bg-dark mt-1"><?php echo number_format($contadores['adimplente'], 0, ',', '.'); ?> títulos</span></small>
+                        </div>
                     </div>
+                </div>
+
+                <!-- Botão para limpar filtro -->
+                <div class="text-center mt-3" id="limparFiltroContainer" style="display: none;">
+                    <button class="btn btn-sm btn-outline-secondary" onclick="limparFiltroCategoria()">
+                        <i class="bi bi-x-circle"></i> Mostrar todas as categorias
+                    </button>
                 </div>
             </div>
         </div>
@@ -1948,53 +1955,65 @@ endif;
                                 // Determinar classe de cor e estilo inline (fallback)
                                 $rowClass = '';
                                 $rowStyle = '';
+                                $statusCategoria = '';  // Para filtro client-side
                                 $status = $titulo['status_inadimplencia'];
 
                                 // CATEGORIAS "REQUER ANÁLISE"
                                 if ($status == 'INADIMPLENTE - Requer análise (1ª parcela)' || $status == 'INADIMPLENTE - Apenas 1ª Parcela') {
                                     $rowClass = 'inadimplente-requer-analise';
                                     $rowStyle = 'background-color: #ffc107 !important; color: #000 !important; font-weight: 600;';
+                                    $statusCategoria = 'requer_analise';
                                 } elseif ($status == 'INADIMPLENTE - Requer análise (2 parcelas)' || $status == 'INADIMPLENTE - Apenas 2 Parcelas') {
                                     $rowClass = 'inadimplente-requer-analise';
                                     $rowStyle = 'background-color: #ffc107 !important; color: #000 !important; font-weight: 600;';
+                                    $statusCategoria = 'requer_analise';
                                 } elseif ($status == 'INADIMPLENTE - Requer análise (até 3 meses)' || $status == 'INADIMPLENTE - Até 3 meses') {
                                     $rowClass = 'inadimplente-requer-analise';
                                     $rowStyle = 'background-color: #ffc107 !important; color: #000 !important; font-weight: 600;';
+                                    $statusCategoria = 'requer_analise';
                                 }
                                 // NOVAS CATEGORIAS POR TEMPO
                                 elseif ($status == 'INADIMPLENTE - 3 a 6 meses') {
                                     $rowClass = 'inadimplente-3a6';
                                     $rowStyle = 'background-color: #ff9800 !important; color: white !important; font-weight: 500;';
+                                    $statusCategoria = 'tres_seis';
                                 } elseif ($status == 'INADIMPLENTE - 6 a 9 meses') {
                                     $rowClass = 'inadimplente-6a9';
                                     $rowStyle = 'background-color: #ff6f00 !important; color: white !important; font-weight: 500;';
+                                    $statusCategoria = 'seis_nove';
                                 } elseif ($status == 'INADIMPLENTE - 9 a 12 meses') {
                                     $rowClass = 'inadimplente-9a12';
                                     $rowStyle = 'background-color: #f44336 !important; color: white !important; font-weight: 500;';
+                                    $statusCategoria = 'nove_doze';
                                 } elseif ($status == 'INADIMPLENTE - Mais de 12 meses') {
                                     $rowClass = 'inadimplente-12mais';
                                     $rowStyle = 'background-color: #c62828 !important; color: white !important; font-weight: bold;';
+                                    $statusCategoria = 'mais_doze';
                                 }
                                 // CATEGORIAS ANTIGAS (compatibilidade)
                                 elseif ($status == 'INADIMPLENTE - Menos de 50%') {
                                     $rowClass = 'inadimplente-menos50';
                                     $rowStyle = 'background-color: #ffeb3b !important; color: #000 !important;';
+                                    $statusCategoria = 'menos_50';
                                 } elseif ($status == 'INADIMPLENTE - Mais de 50%') {
                                     $rowClass = 'inadimplente-mais50';
                                     $rowStyle = 'background-color: #f44336 !important; color: white !important;';
+                                    $statusCategoria = 'mais_50';
                                 }
                                 // INADIMPLENTE GENÉRICO
                                 elseif (strpos($status, 'INADIMPLENTE') !== false) {
                                     $rowClass = 'inadimplente-mais50';
                                     $rowStyle = 'background-color: #f44336 !important; color: white !important;';
+                                    $statusCategoria = 'inadimplente_generico';
                                 }
                                 // ADIMPLENTE
                                 elseif ($status == 'ADIMPLENTE') {
                                     $rowClass = 'adimplente';
                                     $rowStyle = 'background-color: #4caf50 !important; color: white !important; font-weight: 500;';
+                                    $statusCategoria = 'adimplente';
                                 }
                             ?>
-                                <tr class="<?php echo $rowClass; ?>" style="<?php echo $rowStyle; ?>">
+                                <tr class="<?php echo $rowClass; ?>" style="<?php echo $rowStyle; ?>" data-status-categoria="<?php echo $statusCategoria; ?>">
                                     <td>
                                         <?php echo sanitize($titulo['numero_titulo']); ?><br>
                                         <small class="text-muted"><?php echo sanitize($titulo['nome_produto_atual'] ?? ''); ?></small>
@@ -2099,6 +2118,98 @@ endif;
             document.getElementById('dataInicio').focus();
             // Scroll suave até os campos de data
             document.getElementById('dataInicio').scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+
+        // Variável para armazenar filtro ativo
+        let filtroAtivo = null;
+
+        // Função para filtrar tabela por categoria (client-side)
+        function filtrarPorCategoria(categoria, elemento) {
+            const tbody = document.querySelector('table tbody');
+            const rows = tbody.querySelectorAll('tr');
+            const limparBtn = document.getElementById('limparFiltroContainer');
+            const legendaCards = document.querySelectorAll('.legenda-card');
+
+            // Se clicar na mesma categoria, limpar filtro
+            if (filtroAtivo === categoria) {
+                limparFiltroCategoria();
+                return;
+            }
+
+            filtroAtivo = categoria;
+
+            // Remover destaque de todos os cards
+            legendaCards.forEach(card => {
+                card.style.boxShadow = '';
+                card.style.transform = '';
+            });
+
+            // Destacar card selecionado
+            elemento.style.boxShadow = '0 0 15px rgba(0,0,0,0.5)';
+            elemento.style.transform = 'scale(1.05)';
+
+            // Filtrar linhas
+            let countVisible = 0;
+            rows.forEach(row => {
+                const statusCategoria = row.getAttribute('data-status-categoria');
+                if (statusCategoria === categoria) {
+                    row.style.display = '';
+                    countVisible++;
+                } else {
+                    row.style.display = 'none';
+                }
+            });
+
+            // Mostrar botão de limpar filtro
+            limparBtn.style.display = 'block';
+
+            // Atualizar contador de resultados
+            atualizarContadorResultados(countVisible);
+
+            // Scroll suave até a tabela
+            document.querySelector('.table-responsive').scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+
+        // Função para limpar filtro de categoria
+        function limparFiltroCategoria() {
+            const tbody = document.querySelector('table tbody');
+            const rows = tbody.querySelectorAll('tr');
+            const limparBtn = document.getElementById('limparFiltroContainer');
+            const legendaCards = document.querySelectorAll('.legenda-card');
+
+            filtroAtivo = null;
+
+            // Remover destaque de todos os cards
+            legendaCards.forEach(card => {
+                card.style.boxShadow = '';
+                card.style.transform = '';
+            });
+
+            // Mostrar todas as linhas
+            let countTotal = 0;
+            rows.forEach(row => {
+                row.style.display = '';
+                countTotal++;
+            });
+
+            // Esconder botão de limpar filtro
+            limparBtn.style.display = 'none';
+
+            // Restaurar contador original
+            atualizarContadorResultados(countTotal);
+        }
+
+        // Função para atualizar contador de resultados
+        function atualizarContadorResultados(count) {
+            const header = document.querySelector('.card-header h5');
+            if (header) {
+                const countFormatted = count.toLocaleString('pt-BR');
+                if (filtroAtivo) {
+                    header.innerHTML = `<i class="bi bi-table"></i> Resultados (${countFormatted} registros) <span class="badge bg-info ms-2">Filtrado</span>`;
+                } else {
+                    header.innerHTML = `<i class="bi bi-table"></i> Resultados (${countFormatted} registros)`;
+                }
+            }
         }
 
         // Função para converter markdown básico para HTML
