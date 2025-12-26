@@ -1950,7 +1950,7 @@ endif;
                                 <th>Data Venda</th>
                             </tr>
                         </thead>
-                        <tbody>
+                        <tbody id="tabelaTitulos">
                             <?php foreach ($titulos as $titulo):
                                 // Determinar classe de cor e estilo inline (fallback)
                                 $rowClass = '';
@@ -2125,8 +2125,17 @@ endif;
 
         // Função para filtrar tabela por categoria (client-side)
         function filtrarPorCategoria(categoria, elemento) {
-            const tbody = document.querySelector('table tbody');
+            console.log('Filtrando por categoria:', categoria);
+
+            const tbody = document.getElementById('tabelaTitulos');
+            if (!tbody) {
+                console.error('Tbody não encontrado!');
+                return;
+            }
+
             const rows = tbody.querySelectorAll('tr');
+            console.log('Total de linhas encontradas:', rows.length);
+
             const limparBtn = document.getElementById('limparFiltroContainer');
             const legendaCards = document.querySelectorAll('.legenda-card');
 
@@ -2152,6 +2161,8 @@ endif;
             let countVisible = 0;
             rows.forEach(row => {
                 const statusCategoria = row.getAttribute('data-status-categoria');
+                console.log('Linha com categoria:', statusCategoria);
+
                 if (statusCategoria === categoria) {
                     row.style.display = '';
                     countVisible++;
@@ -2160,19 +2171,28 @@ endif;
                 }
             });
 
+            console.log('Linhas visíveis após filtro:', countVisible);
+
             // Mostrar botão de limpar filtro
-            limparBtn.style.display = 'block';
+            if (limparBtn) {
+                limparBtn.style.display = 'block';
+            }
 
             // Atualizar contador de resultados
             atualizarContadorResultados(countVisible);
 
             // Scroll suave até a tabela
-            document.querySelector('.table-responsive').scrollIntoView({ behavior: 'smooth', block: 'start' });
+            const tableContainer = document.querySelector('.table-responsive');
+            if (tableContainer) {
+                tableContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
         }
 
         // Função para limpar filtro de categoria
         function limparFiltroCategoria() {
-            const tbody = document.querySelector('table tbody');
+            const tbody = document.getElementById('tabelaTitulos');
+            if (!tbody) return;
+
             const rows = tbody.querySelectorAll('tr');
             const limparBtn = document.getElementById('limparFiltroContainer');
             const legendaCards = document.querySelectorAll('.legenda-card');
@@ -2193,7 +2213,9 @@ endif;
             });
 
             // Esconder botão de limpar filtro
-            limparBtn.style.display = 'none';
+            if (limparBtn) {
+                limparBtn.style.display = 'none';
+            }
 
             // Restaurar contador original
             atualizarContadorResultados(countTotal);

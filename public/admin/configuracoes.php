@@ -94,16 +94,38 @@ $configs = [
                         <div class="col-md-6">
                             <div class="mb-3">
                                 <label class="form-label">Data Início - Dashboard</label>
-                                <input type="date" name="data_inicio_dashboard" class="form-control" value="<?php echo $configs['data_inicio_dashboard']; ?>">
+                                <input type="date" id="dataDashboard" name="data_inicio_dashboard" class="form-control" value="<?php echo $configs['data_inicio_dashboard']; ?>">
                                 <small class="text-muted">Data padrão do filtro na página inicial</small>
                             </div>
                         </div>
                         <div class="col-md-6">
                             <div class="mb-3">
                                 <label class="form-label">Data Início - Relatórios</label>
-                                <input type="date" name="data_inicio_relatorios" class="form-control" value="<?php echo $configs['data_inicio_relatorios']; ?>">
+                                <input type="date" id="dataRelatorios" name="data_inicio_relatorios" class="form-control" value="<?php echo $configs['data_inicio_relatorios']; ?>">
                                 <small class="text-muted">Data padrão do filtro em relatórios</small>
                             </div>
+                        </div>
+                    </div>
+
+                    <!-- Períodos Rápidos -->
+                    <div class="row mb-3">
+                        <div class="col-12">
+                            <label class="form-label d-block">Períodos Rápidos (preenche ambos os campos)</label>
+                            <div class="btn-group btn-group-sm" role="group">
+                                <button type="button" class="btn btn-outline-secondary" onclick="setPeriodoAdmin(3)">
+                                    <i class="bi bi-calendar3"></i> 3 meses atrás
+                                </button>
+                                <button type="button" class="btn btn-outline-secondary" onclick="setPeriodoAdmin(6)">
+                                    <i class="bi bi-calendar3"></i> 6 meses atrás
+                                </button>
+                                <button type="button" class="btn btn-outline-secondary" onclick="setPeriodoAdmin(9)">
+                                    <i class="bi bi-calendar3"></i> 9 meses atrás
+                                </button>
+                                <button type="button" class="btn btn-outline-secondary" onclick="setPeriodoAdmin(12)">
+                                    <i class="bi bi-calendar3"></i> 1 ano atrás
+                                </button>
+                            </div>
+                            <small class="text-muted d-block mt-1">Clique para calcular a data automaticamente</small>
                         </div>
                     </div>
 
@@ -144,5 +166,36 @@ $configs = [
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Função para definir período rápido (preenche ambos campos)
+        function setPeriodoAdmin(meses) {
+            const hoje = new Date();
+            const dataInicio = new Date();
+            dataInicio.setMonth(dataInicio.getMonth() - meses);
+
+            // Formatar para YYYY-MM-DD
+            const formatarData = (data) => {
+                const ano = data.getFullYear();
+                const mes = String(data.getMonth() + 1).padStart(2, '0');
+                const dia = String(data.getDate()).padStart(2, '0');
+                return `${ano}-${mes}-${dia}`;
+            };
+
+            const dataFormatada = formatarData(dataInicio);
+
+            // Preencher ambos os campos
+            document.getElementById('dataDashboard').value = dataFormatada;
+            document.getElementById('dataRelatorios').value = dataFormatada;
+
+            // Feedback visual
+            document.getElementById('dataDashboard').classList.add('border-success');
+            document.getElementById('dataRelatorios').classList.add('border-success');
+
+            setTimeout(() => {
+                document.getElementById('dataDashboard').classList.remove('border-success');
+                document.getElementById('dataRelatorios').classList.remove('border-success');
+            }, 1000);
+        }
+    </script>
 </body>
 </html>
