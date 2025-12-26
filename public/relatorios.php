@@ -82,6 +82,15 @@ if (!empty($_GET['status_inadimplencia'])) {
     $filtros['status_inadimplencia'] = $_GET['status_inadimplencia'];
 }
 
+// Filtro especial para categoria "REQUER ANÁLISE" (agrupamento de vários status)
+if (!empty($_GET['status_inadimplencia_categoria']) && $_GET['status_inadimplencia_categoria'] == 'requer_analise') {
+    $where[] = "(status_inadimplencia LIKE '%Requer análise%'
+                 OR status_inadimplencia = 'INADIMPLENTE - Apenas 1ª Parcela'
+                 OR status_inadimplencia = 'INADIMPLENTE - Apenas 2 Parcelas'
+                 OR status_inadimplencia = 'INADIMPLENTE - Até 3 meses')";
+    $filtros['status_inadimplencia'] = 'Requer Análise';
+}
+
 // Filtro de pesquisa geral (nome, CPF ou número do título)
 if (!empty($_GET['pesquisa_geral'])) {
     $pesquisaGeral = $_GET['pesquisa_geral'];
@@ -191,6 +200,39 @@ $offset = ($page - 1) * $perPage;
 // Contar total
 $totalSql = "SELECT COUNT(*) FROM titulos WHERE " . implode(' AND ', $where);
 $total = $db->fetchColumn($totalSql, $params);
+
+// Contar títulos por categoria de inadimplência (para legenda)
+$whereBase = implode(' AND ', $where);
+$contadores = [
+    'requer_analise' => $db->fetchColumn("
+        SELECT COUNT(*) FROM titulos
+        WHERE $whereBase
+          AND (status_inadimplencia LIKE '%Requer análise%'
+               OR status_inadimplencia = 'INADIMPLENTE - Apenas 1ª Parcela'
+               OR status_inadimplencia = 'INADIMPLENTE - Apenas 2 Parcelas'
+               OR status_inadimplencia = 'INADIMPLENTE - Até 3 meses')
+    ", $params),
+    'tres_seis' => $db->fetchColumn("
+        SELECT COUNT(*) FROM titulos
+        WHERE $whereBase AND status_inadimplencia = 'INADIMPLENTE - 3 a 6 meses'
+    ", $params),
+    'seis_nove' => $db->fetchColumn("
+        SELECT COUNT(*) FROM titulos
+        WHERE $whereBase AND status_inadimplencia = 'INADIMPLENTE - 6 a 9 meses'
+    ", $params),
+    'nove_doze' => $db->fetchColumn("
+        SELECT COUNT(*) FROM titulos
+        WHERE $whereBase AND status_inadimplencia = 'INADIMPLENTE - 9 a 12 meses'
+    ", $params),
+    'mais_doze' => $db->fetchColumn("
+        SELECT COUNT(*) FROM titulos
+        WHERE $whereBase AND status_inadimplencia = 'INADIMPLENTE - Mais de 12 meses'
+    ", $params),
+    'adimplente' => $db->fetchColumn("
+        SELECT COUNT(*) FROM titulos
+        WHERE $whereBase AND status_inadimplencia = 'ADIMPLENTE'
+    ", $params)
+];
 
 // Buscar registros
 $sql = "SELECT * FROM titulos
@@ -1654,7 +1696,7 @@ endif;
                     <!-- Botões de Períodos Rápidos -->
                     <div class="col-md-6">
                         <label class="form-label">Períodos Rápidos</label>
-                        <div class="btn-group w-100" role="group">
+                        <div class="btn-group w-100 mb-2" role="group">
                             <button type="button" class="btn btn-outline-secondary btn-sm" onclick="setPeriodo(3)">
                                 <i class="bi bi-calendar3"></i> 3 meses
                             </button>
@@ -1666,6 +1708,14 @@ endif;
                             </button>
                             <button type="button" class="btn btn-outline-secondary btn-sm" onclick="setPeriodo(12)">
                                 <i class="bi bi-calendar3"></i> 1 ano
+                            </button>
+                        </div>
+                        <div class="btn-group w-100" role="group">
+                            <button type="button" class="btn btn-outline-primary btn-sm" onclick="setPeriodoCompleto()">
+                                <i class="bi bi-infinity"></i> Todo Período
+                            </button>
+                            <button type="button" class="btn btn-outline-info btn-sm" onclick="focarCamposData()">
+                                <i class="bi bi-calendar-range"></i> Personalizado
                             </button>
                         </div>
                         <small class="text-muted">Clique para preencher automaticamente as datas</small>
@@ -1786,42 +1836,60 @@ endif;
                 <div class="row g-2">
                     <!-- Categoria "REQUER ANÁLISE" -->
                     <div class="col-md-4">
-                        <div class="p-2 border rounded text-center" style="background-color: #ffc107; color: #000; font-weight: 600;">
-                            <small><strong>REQUER ANÁLISE</strong><br>
-                            <span class="text-muted">1ª, 2ª parcela ou até 3 meses</span></small>
-                        </div>
+                        <a href="?status_inadimplencia_categoria=requer_analise<?php echo isset($_GET['data_inicio']) ? '&data_inicio=' . urlencode($_GET['data_inicio']) : ''; ?><?php echo isset($_GET['data_fim']) ? '&data_fim=' . urlencode($_GET['data_fim']) : ''; ?>" class="text-decoration-none">
+                            <div class="p-2 border rounded text-center" style="background-color: #ffc107; color: #000; font-weight: 600; cursor: pointer;">
+                                <small><strong>REQUER ANÁLISE</strong><br>
+                                <span class="text-muted">1ª, 2ª parcela ou até 3 meses</span><br>
+                                <span class="badge bg-dark mt-1"><?php echo number_format($contadores['requer_analise'], 0, ',', '.'); ?> títulos</span></small>
+                            </div>
+                        </a>
                     </div>
                     <div class="col-md-3">
-                        <div class="p-2 border rounded text-center" style="background-color: #ff9800; color: white;">
-                            <small><strong>3 a 6 meses</strong><br>
-                            <span style="opacity: 0.9;">Experiência</span></small>
-                        </div>
+                        <a href="?status_inadimplencia=INADIMPLENTE - 3 a 6 meses<?php echo isset($_GET['data_inicio']) ? '&data_inicio=' . urlencode($_GET['data_inicio']) : ''; ?><?php echo isset($_GET['data_fim']) ? '&data_fim=' . urlencode($_GET['data_fim']) : ''; ?>" class="text-decoration-none">
+                            <div class="p-2 border rounded text-center" style="background-color: #ff9800; color: white; cursor: pointer;">
+                                <small><strong>3 a 6 meses</strong><br>
+                                <span style="opacity: 0.9;">Experiência</span><br>
+                                <span class="badge bg-dark mt-1"><?php echo number_format($contadores['tres_seis'], 0, ',', '.'); ?> títulos</span></small>
+                            </div>
+                        </a>
                     </div>
                     <div class="col-md-3">
-                        <div class="p-2 border rounded text-center" style="background-color: #ff6f00; color: white;">
-                            <small><strong>6 a 9 meses</strong><br>
-                            <span style="opacity: 0.9;">Expectativa</span></small>
-                        </div>
+                        <a href="?status_inadimplencia=INADIMPLENTE - 6 a 9 meses<?php echo isset($_GET['data_inicio']) ? '&data_inicio=' . urlencode($_GET['data_inicio']) : ''; ?><?php echo isset($_GET['data_fim']) ? '&data_fim=' . urlencode($_GET['data_fim']) : ''; ?>" class="text-decoration-none">
+                            <div class="p-2 border rounded text-center" style="background-color: #ff6f00; color: white; cursor: pointer;">
+                                <small><strong>6 a 9 meses</strong><br>
+                                <span style="opacity: 0.9;">Expectativa</span><br>
+                                <span class="badge bg-dark mt-1"><?php echo number_format($contadores['seis_nove'], 0, ',', '.'); ?> títulos</span></small>
+                            </div>
+                        </a>
                     </div>
                     <div class="col-md-3">
-                        <div class="p-2 border rounded text-center" style="background-color: #f44336; color: white;">
-                            <small><strong>9 a 12 meses</strong><br>
-                            <span style="opacity: 0.9;">Problema sério</span></small>
-                        </div>
+                        <a href="?status_inadimplencia=INADIMPLENTE - 9 a 12 meses<?php echo isset($_GET['data_inicio']) ? '&data_inicio=' . urlencode($_GET['data_inicio']) : ''; ?><?php echo isset($_GET['data_fim']) ? '&data_fim=' . urlencode($_GET['data_fim']) : ''; ?>" class="text-decoration-none">
+                            <div class="p-2 border rounded text-center" style="background-color: #f44336; color: white; cursor: pointer;">
+                                <small><strong>9 a 12 meses</strong><br>
+                                <span style="opacity: 0.9;">Problema sério</span><br>
+                                <span class="badge bg-dark mt-1"><?php echo number_format($contadores['nove_doze'], 0, ',', '.'); ?> títulos</span></small>
+                            </div>
+                        </a>
                     </div>
                     <div class="col-md-3">
-                        <div class="p-2 border rounded text-center" style="background-color: #c62828; color: white; font-weight: bold;">
-                            <small><strong>Mais de 12 meses</strong><br>
-                            <span style="opacity: 0.9;">Crônico</span></small>
-                        </div>
+                        <a href="?status_inadimplencia=INADIMPLENTE - Mais de 12 meses<?php echo isset($_GET['data_inicio']) ? '&data_inicio=' . urlencode($_GET['data_inicio']) : ''; ?><?php echo isset($_GET['data_fim']) ? '&data_fim=' . urlencode($_GET['data_fim']) : ''; ?>" class="text-decoration-none">
+                            <div class="p-2 border rounded text-center" style="background-color: #c62828; color: white; font-weight: bold; cursor: pointer;">
+                                <small><strong>Mais de 12 meses</strong><br>
+                                <span style="opacity: 0.9;">Crônico</span><br>
+                                <span class="badge bg-dark mt-1"><?php echo number_format($contadores['mais_doze'], 0, ',', '.'); ?> títulos</span></small>
+                            </div>
+                        </a>
                     </div>
 
                     <!-- Adimplente -->
                     <div class="col-md-3">
-                        <div class="p-2 border rounded text-center" style="background-color: #4caf50; color: white;">
-                            <small><strong>Adimplente</strong><br>
-                            <span style="opacity: 0.9;">Em dia</span></small>
-                        </div>
+                        <a href="?status_inadimplencia=ADIMPLENTE<?php echo isset($_GET['data_inicio']) ? '&data_inicio=' . urlencode($_GET['data_inicio']) : ''; ?><?php echo isset($_GET['data_fim']) ? '&data_fim=' . urlencode($_GET['data_fim']) : ''; ?>" class="text-decoration-none">
+                            <div class="p-2 border rounded text-center" style="background-color: #4caf50; color: white; cursor: pointer;">
+                                <small><strong>Adimplente</strong><br>
+                                <span style="opacity: 0.9;">Em dia</span><br>
+                                <span class="badge bg-dark mt-1"><?php echo number_format($contadores['adimplente'], 0, ',', '.'); ?> títulos</span></small>
+                            </div>
+                        </a>
                     </div>
                 </div>
             </div>
@@ -2018,6 +2086,19 @@ endif;
 
             document.getElementById('dataInicio').value = formatarData(dataInicio);
             document.getElementById('dataFim').value = formatarData(hoje);
+        }
+
+        // Função para definir todo o período (limpar filtro de data)
+        function setPeriodoCompleto() {
+            document.getElementById('dataInicio').value = '';
+            document.getElementById('dataFim').value = '';
+        }
+
+        // Função para focar nos campos de data (modo personalizado)
+        function focarCamposData() {
+            document.getElementById('dataInicio').focus();
+            // Scroll suave até os campos de data
+            document.getElementById('dataInicio').scrollIntoView({ behavior: 'smooth', block: 'center' });
         }
 
         // Função para converter markdown básico para HTML
