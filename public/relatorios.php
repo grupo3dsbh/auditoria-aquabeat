@@ -245,6 +245,167 @@ $params[] = $offset;
 
 $titulos = $db->fetchAll($sql, $params);
 
+// REGRA ESPECIAL: Se período filtrado for menor que 6 meses, aplicar classificação rigorosa
+// Qualquer parcela em atraso = inadimplente (sem tolerância de 2 parcelas)
+$periodoRigoroso = false;
+
+if (!empty($dataInicio) && !empty($dataFim)) {
+    $dtInicio = new DateTime($dataInicio);
+    $dtFim = new DateTime($dataFim);
+    $diff = $dtInicio->diff($dtFim);
+    $mesesPeriodo = ($diff->y * 12) + $diff->m;
+
+    // Se período filtrado for menor que 6 meses, ativar modo rigoroso
+    if ($mesesPeriodo < 6) {
+        $periodoRigoroso = true;
+
+        // Recalcular status de cada título com regra rigorosa
+        foreach ($titulos as &$titulo) {
+            // Pular se não tiver dados necessários
+            if (empty($titulo['data_primeira_venda']) || !isset($titulo['qtd_parcelas_pagas'])) {
+                continue;
+            }
+
+            $parcelasPagas = (int)$titulo['qtd_parcelas_pagas'];
+            $totalParcelas = (int)$titulo['quantidade_parcelas_venda'];
+            $statusTitulo = $titulo['status_titulo'] ?? 'Ativo';
+            $statusAtual = $titulo['status_inadimplencia'];
+
+            // Se já está ADIMPLENTE no banco (pagou tudo), manter
+            if ($parcelasPagas >= $totalParcelas) {
+                continue;
+            }
+
+            // Se não pagou NENHUMA parcela, já está marcado como inadimplente, manter
+            if ($parcelasPagas == 0) {
+                continue;
+            }
+
+            // Para títulos bloqueados/cancelados, manter classificação original
+            if ($statusTitulo === 'Bloqueado' || $statusTitulo === 'Cancelado') {
+                continue;
+            }
+
+            // APLICAR REGRA RIGOROSA: Calcular parcelas esperadas
+            $dataVenda = new DateTime($titulo['data_primeira_venda']);
+            $hoje = new DateTime();
+            $diffVenda = $dataVenda->diff($hoje);
+            $mesesDesdeVenda = ($diffVenda->y * 12) + $diffVenda->m;
+
+            // Se já passou o dia de vencimento no mês atual, conta mais um mês
+            $diaVenda = (int)$dataVenda->format('d');
+            $diaHoje = (int)$hoje->format('d');
+            if ($diaHoje >= $diaVenda) {
+                $mesesDesdeVenda++;
+            }
+
+            $parcelasEsperadas = max(1, $mesesDesdeVenda);
+            $parcelasEmAtraso = max(0, $parcelasEsperadas - $parcelasPagas);
+
+            // REGRA RIGOROSA: Qualquer parcela em atraso = INADIMPLENTE
+            if ($parcelasEmAtraso > 0) {
+                // Reclassificar baseado no tempo desde a venda
+                if ($mesesDesdeVenda <= 3) {
+                    if ($parcelasPagas == 1) {
+                        $titulo['status_inadimplencia'] = 'INADIMPLENTE - Requer análise (1ª parcela)';
+                    } elseif ($parcelasPagas == 2) {
+                        $titulo['status_inadimplencia'] = 'INADIMPLENTE - Requer análise (2 parcelas)';
+                    } else {
+                        $titulo['status_inadimplencia'] = 'INADIMPLENTE - Requer análise (até 3 meses)';
+                    }
+                } elseif ($mesesDesdeVenda <= 6) {
+                    $titulo['status_inadimplencia'] = 'INADIMPLENTE - 3 a 6 meses';
+                } elseif ($mesesDesdeVenda <= 9) {
+                    $titulo['status_inadimplencia'] = 'INADIMPLENTE - 6 a 9 meses';
+                } elseif ($mesesDesdeVenda <= 12) {
+                    $titulo['status_inadimplencia'] = 'INADIMPLENTE - 9 a 12 meses';
+                } else {
+                    $titulo['status_inadimplencia'] = 'INADIMPLENTE - Mais de 12 meses';
+                }
+            }
+        }
+        unset($titulo); // Limpar referência
+
+        // Recalcular contadores com a nova classificação
+        $contadores = [
+            'requer_analise' => 0,
+            'tres_seis' => 0,
+            'seis_nove' => 0,
+            'nove_doze' => 0,
+            'mais_doze' => 0,
+            'adimplente' => 0
+        ];
+
+        // Buscar TODOS os títulos (não só da página atual) para contadores corretos
+        $sqlTodos = "SELECT * FROM titulos WHERE " . implode(' AND ', $where);
+        $paramsTodos = array_slice($params, 0, -2); // Remover LIMIT e OFFSET
+        $todosTitulos = $db->fetchAll($sqlTodos, $paramsTodos);
+
+        // Aplicar mesma lógica rigorosa para todos os títulos
+        foreach ($todosTitulos as &$tit) {
+            if (empty($tit['data_primeira_venda']) || !isset($tit['qtd_parcelas_pagas'])) {
+                continue;
+            }
+
+            $pp = (int)$tit['qtd_parcelas_pagas'];
+            $tp = (int)$tit['quantidade_parcelas_venda'];
+            $st = $tit['status_titulo'] ?? 'Ativo';
+
+            if ($pp >= $tp) {
+                $contadores['adimplente']++;
+                continue;
+            }
+
+            if ($pp == 0 || $st === 'Bloqueado' || $st === 'Cancelado') {
+                // Classificação original
+                $status = $tit['status_inadimplencia'];
+            } else {
+                // Aplicar regra rigorosa
+                $dv = new DateTime($tit['data_primeira_venda']);
+                $h = new DateTime();
+                $dif = $dv->diff($h);
+                $m = ($dif->y * 12) + $dif->m;
+                if ((int)$h->format('d') >= (int)$dv->format('d')) $m++;
+                $pe = max(1, $m);
+                $pa = max(0, $pe - $pp);
+
+                if ($pa > 0) {
+                    if ($m <= 3) {
+                        $status = 'INADIMPLENTE - Requer análise';
+                    } elseif ($m <= 6) {
+                        $status = 'INADIMPLENTE - 3 a 6 meses';
+                    } elseif ($m <= 9) {
+                        $status = 'INADIMPLENTE - 6 a 9 meses';
+                    } elseif ($m <= 12) {
+                        $status = 'INADIMPLENTE - 9 a 12 meses';
+                    } else {
+                        $status = 'INADIMPLENTE - Mais de 12 meses';
+                    }
+                } else {
+                    $status = 'ADIMPLENTE';
+                }
+            }
+
+            // Contar baseado no status recalculado
+            if ($status == 'ADIMPLENTE') {
+                $contadores['adimplente']++;
+            } elseif (strpos($status, 'Requer análise') !== false || strpos($status, 'Apenas 1ª') !== false ||
+                      strpos($status, 'Apenas 2') !== false || strpos($status, 'Até 3 meses') !== false) {
+                $contadores['requer_analise']++;
+            } elseif (strpos($status, '3 a 6 meses') !== false) {
+                $contadores['tres_seis']++;
+            } elseif (strpos($status, '6 a 9 meses') !== false) {
+                $contadores['seis_nove']++;
+            } elseif (strpos($status, '9 a 12 meses') !== false) {
+                $contadores['nove_doze']++;
+            } elseif (strpos($status, 'Mais de 12 meses') !== false) {
+                $contadores['mais_doze']++;
+            }
+        }
+        unset($tit);
+    }
+}
+
 // Se filtro CPF duplicado estiver ativo, criar array de contagem por CPF
 $cpfContadores = [];
 $cpfTituloIndice = []; // Mapeia titulo_id => [indice atual, total]
@@ -1832,6 +1993,14 @@ endif;
                     <i class="bi bi-info-circle"></i>
                     <strong>Nova classificação:</strong> identifica em qual etapa o cliente parou de pagar para análise de comportamento e estratégias de reativação.
                 </p>
+
+                <?php if ($periodoRigoroso): ?>
+                <div class="alert alert-warning mb-3" role="alert">
+                    <i class="bi bi-exclamation-triangle-fill"></i>
+                    <strong>Classificação Rigorosa Ativa!</strong><br>
+                    <small>Período filtrado menor que 6 meses detectado. Qualquer parcela em atraso será considerada como inadimplente (sem tolerância de 2 parcelas).</small>
+                </div>
+                <?php endif; ?>
 
                 <div class="row g-2" id="legendaFiltros">
                     <!-- Categoria "REQUER ANÁLISE" -->
