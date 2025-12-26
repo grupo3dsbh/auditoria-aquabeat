@@ -27,7 +27,9 @@ $configs = [
     'api_ia_provider' => getConfig('api_ia_provider', 'groq'),
     'api_ia_key' => getConfig('api_ia_key', ''),
     'registros_por_pagina' => getConfig('registros_por_pagina', '50'),
-    'modo_debug' => getConfig('modo_debug', '0')
+    'modo_debug' => getConfig('modo_debug', '0'),
+    'data_inicio_dashboard' => getConfig('data_inicio_dashboard', '2024-11-01'),
+    'data_inicio_relatorios' => getConfig('data_inicio_relatorios', '2024-11-01')
 ];
 ?>
 <!DOCTYPE html>
@@ -81,6 +83,28 @@ $configs = [
                             Groq: <a href="https://console.groq.com" target="_blank">console.groq.com</a> |
                             OpenAI: <a href="https://platform.openai.com" target="_blank">platform.openai.com</a>
                         </small>
+                    </div>
+
+                    <hr>
+
+                    <h5>Filtros Padrão</h5>
+                    <p class="text-muted small"><i class="bi bi-info-circle"></i> Configure a data de início padrão para os filtros</p>
+
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">Data Início - Dashboard</label>
+                                <input type="date" name="data_inicio_dashboard" class="form-control" value="<?php echo $configs['data_inicio_dashboard']; ?>">
+                                <small class="text-muted">Data padrão do filtro na página inicial</small>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">Data Início - Relatórios</label>
+                                <input type="date" name="data_inicio_relatorios" class="form-control" value="<?php echo $configs['data_inicio_relatorios']; ?>">
+                                <small class="text-muted">Data padrão do filtro em relatórios</small>
+                            </div>
+                        </div>
                     </div>
 
                     <hr>

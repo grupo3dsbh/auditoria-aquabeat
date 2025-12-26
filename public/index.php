@@ -10,8 +10,8 @@ $db = Database::getInstance();
 // Obter última importação
 $ultimaImportacao = $db->fetchOne("SELECT * FROM importacoes ORDER BY criado_em DESC LIMIT 1");
 
-// Filtro de período: 01/11/2024 até HOJE (dashboard mostra dados atualizados)
-$dataInicio = '2024-11-01';
+// Filtro de período: data configurável até HOJE (dashboard mostra dados atualizados)
+$dataInicio = getConfig('data_inicio_dashboard', '2024-11-01');
 $dataFim = date('Y-m-d'); // Hoje
 
 // Estatísticas gerais

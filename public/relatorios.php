@@ -27,8 +27,8 @@ $filtros = [];
 $where = ["importacao_id = ?"];
 $params = [$importacaoId];
 
-// Filtro padrão: Data desde 01/11/2024
-$dataInicio = !empty($_GET['data_inicio']) ? $_GET['data_inicio'] : '2024-11-01';
+// Filtro padrão: Data configurável pelo admin
+$dataInicio = !empty($_GET['data_inicio']) ? $_GET['data_inicio'] : getConfig('data_inicio_relatorios', '2024-11-01');
 $dataFim = !empty($_GET['data_fim']) ? $_GET['data_fim'] : $dataFimPadrao;
 
 $where[] = "data_primeira_venda >= ?";
@@ -1643,12 +1643,32 @@ endif;
 
                     <div class="col-md-3">
                         <label class="form-label">Data Início</label>
-                        <input type="date" name="data_inicio" class="form-control" value="<?php echo sanitize($filtros['data_inicio']); ?>">
+                        <input type="date" name="data_inicio" class="form-control" id="dataInicio" value="<?php echo sanitize($filtros['data_inicio']); ?>">
                     </div>
 
                     <div class="col-md-3">
                         <label class="form-label">Data Fim</label>
-                        <input type="date" name="data_fim" class="form-control" value="<?php echo sanitize($filtros['data_fim']); ?>">
+                        <input type="date" name="data_fim" class="form-control" id="dataFim" value="<?php echo sanitize($filtros['data_fim']); ?>">
+                    </div>
+
+                    <!-- Botões de Períodos Rápidos -->
+                    <div class="col-md-6">
+                        <label class="form-label">Períodos Rápidos</label>
+                        <div class="btn-group w-100" role="group">
+                            <button type="button" class="btn btn-outline-secondary btn-sm" onclick="setPeriodo(3)">
+                                <i class="bi bi-calendar3"></i> 3 meses
+                            </button>
+                            <button type="button" class="btn btn-outline-secondary btn-sm" onclick="setPeriodo(6)">
+                                <i class="bi bi-calendar3"></i> 6 meses
+                            </button>
+                            <button type="button" class="btn btn-outline-secondary btn-sm" onclick="setPeriodo(9)">
+                                <i class="bi bi-calendar3"></i> 9 meses
+                            </button>
+                            <button type="button" class="btn btn-outline-secondary btn-sm" onclick="setPeriodo(12)">
+                                <i class="bi bi-calendar3"></i> 1 ano
+                            </button>
+                        </div>
+                        <small class="text-muted">Clique para preencher automaticamente as datas</small>
                     </div>
 
                     <div class="col-md-3">
@@ -1980,6 +2000,24 @@ endif;
             form.appendChild(input1);
             form.appendChild(input2);
             form.submit();
+        }
+
+        // Função para definir período rápido
+        function setPeriodo(meses) {
+            const hoje = new Date();
+            const dataInicio = new Date();
+            dataInicio.setMonth(dataInicio.getMonth() - meses);
+
+            // Formatar para YYYY-MM-DD
+            const formatarData = (data) => {
+                const ano = data.getFullYear();
+                const mes = String(data.getMonth() + 1).padStart(2, '0');
+                const dia = String(data.getDate()).padStart(2, '0');
+                return `${ano}-${mes}-${dia}`;
+            };
+
+            document.getElementById('dataInicio').value = formatarData(dataInicio);
+            document.getElementById('dataFim').value = formatarData(hoje);
         }
 
         // Função para converter markdown básico para HTML
