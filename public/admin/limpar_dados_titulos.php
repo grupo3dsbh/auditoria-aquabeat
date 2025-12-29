@@ -71,24 +71,24 @@ echo "Iniciando limpeza de dados...\n\n";
 try {
     // 1. Deletar cartões
     echo "1. Deletando cartões...\n";
-    $result = $db->exec("DELETE FROM titulo_cartoes");
+    $result = $db->getConnection()->exec("DELETE FROM titulo_cartoes");
     echo "<span class='success'>✓ {$result} cartões deletados</span>\n\n";
 
     // 2. Deletar títulos
     echo "2. Deletando títulos...\n";
-    $result = $db->exec("DELETE FROM titulos");
+    $result = $db->getConnection()->exec("DELETE FROM titulos");
     echo "<span class='success'>✓ {$result} títulos deletados</span>\n\n";
 
     // 3. Deletar importações
     echo "3. Deletando importações...\n";
-    $result = $db->exec("DELETE FROM importacoes");
+    $result = $db->getConnection()->exec("DELETE FROM importacoes");
     echo "<span class='success'>✓ {$result} importações deletadas</span>\n\n";
 
     // 4. Resetar AUTO_INCREMENT
     echo "4. Resetando contadores AUTO_INCREMENT...\n";
-    $db->exec("ALTER TABLE titulo_cartoes AUTO_INCREMENT = 1");
-    $db->exec("ALTER TABLE titulos AUTO_INCREMENT = 1");
-    $db->exec("ALTER TABLE importacoes AUTO_INCREMENT = 1");
+    $db->getConnection()->exec("ALTER TABLE titulo_cartoes AUTO_INCREMENT = 1");
+    $db->getConnection()->exec("ALTER TABLE titulos AUTO_INCREMENT = 1");
+    $db->getConnection()->exec("ALTER TABLE importacoes AUTO_INCREMENT = 1");
     echo "<span class='success'>✓ Contadores resetados</span>\n\n";
 
     echo "\n========================================\n";

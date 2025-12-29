@@ -69,7 +69,7 @@ try {
         echo substr($firstLine, 0, 80) . "...\n";
 
         try {
-            $db->exec($statement);
+            $db->getConnection()->exec($statement);
             echo "<span class='success'>✓ Executado com sucesso!</span>\n\n";
             $success++;
         } catch (Exception $e) {
