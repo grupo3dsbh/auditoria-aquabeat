@@ -2125,7 +2125,11 @@ endif;
         <div class="card">
             <div class="card-header d-flex justify-content-between align-items-center">
                 <h5><i class="bi bi-table"></i> Resultados (<?php echo number_format($total, 0, ',', '.'); ?> registros)</h5>
-                <div class="btn-group btn-group-sm">
+                <div class="d-flex gap-2">
+                    <button class="btn btn-danger btn-sm" onclick="gerarPDFComIA()" id="btnGerarPDF">
+                        <i class="bi bi-file-earmark-pdf"></i> Exportar PDF com Análise IA
+                    </button>
+                    <div class="btn-group btn-group-sm">
                     <button class="btn btn-outline-secondary <?php echo $orderBy == 'nome_titular' ? 'active' : ''; ?>" onclick="ordenar('nome_titular', '<?php echo ($orderBy == 'nome_titular' && $orderDir == 'ASC') ? 'DESC' : 'ASC'; ?>')">
                         <i class="bi bi-sort-alpha-down"></i> Nome
                         <?php if ($orderBy == 'nome_titular'): ?><i class="bi bi-arrow-<?php echo $orderDir == 'ASC' ? 'up' : 'down'; ?>"></i><?php endif; ?>
@@ -2150,6 +2154,7 @@ endif;
                         <i class="bi bi-calendar"></i> Data
                         <?php if ($orderBy == 'data_primeira_venda'): ?><i class="bi bi-arrow-<?php echo $orderDir == 'ASC' ? 'up' : 'down'; ?>"></i><?php endif; ?>
                     </button>
+                    </div>
                 </div>
             </div>
             <div class="card-body">
