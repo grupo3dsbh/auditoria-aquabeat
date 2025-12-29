@@ -48,9 +48,9 @@ TodosCartoes AS (
     SELECT
         NumeroTitulo,
         -- Concatenar TODOS os cartões únicos com " | "
-        STRING_AGG(NumeroCartao, ' | ') WITHIN GROUP (ORDER BY NumeroCartao) AS TodosNumeroCartao,
+        STRING_AGG(NumeroCartao, ' | ') AS TodosNumeroCartao,
         -- Concatenar TODAS as bandeiras únicas com " | "
-        STRING_AGG(Bandeira, ' | ') WITHIN GROUP (ORDER BY Bandeira) AS TodasBandeiras,
+        STRING_AGG(Bandeira, ' | ') AS TodasBandeiras,
         -- Tipo de pagamento (pegar o mais recente)
         MAX(PaymentType) AS TipoPagamentoCartao
     FROM (
