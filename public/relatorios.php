@@ -16,6 +16,14 @@ if (!$ultimaImportacao) {
 
 $importacaoId = $ultimaImportacao['id'];
 
+// Buscar primeira data de venda no sistema (para botão "Todo Período")
+$primeiraDataVenda = $db->fetchColumn("SELECT MIN(data_primeira_venda) FROM titulos WHERE importacao_id = ?", [$importacaoId]);
+if ($primeiraDataVenda) {
+    $primeiraDataVenda = date('Y-m-d', strtotime($primeiraDataVenda));
+} else {
+    $primeiraDataVenda = '2024-01-01'; // Fallback
+}
+
 // Detectar se é visualização apenas de cartões
 $viewCartoes = !empty($_GET['view']) && $_GET['view'] === 'cartoes';
 
@@ -266,6 +274,27 @@ if (!empty($dataInicio) && !empty($dataFim)) {
                 continue;
             }
 
+            // REGRA ESPECIAL: Cotas de Premiação (SAP, DIP) sempre ADIMPLENTE
+            $nomeProduto = strtoupper($titulo['nome_produto_atual'] ?? $titulo['nome_produto_original'] ?? '');
+            $numeroTitulo = strtoupper($titulo['numero_titulo'] ?? '');
+            $promotor = strtoupper($titulo['promotor'] ?? '');
+
+            $ehCotaPremiacao = (
+                strpos($nomeProduto, 'SAP') !== false ||
+                strpos($nomeProduto, 'DIP') !== false ||
+                strpos($numeroTitulo, '-SAP') !== false ||
+                strpos($numeroTitulo, '-DIP') !== false ||
+                strpos($promotor, 'AQUABEAT') !== false ||
+                strpos($promotor, 'DOUGLAS RIBEIRO') !== false ||
+                strpos($promotor, 'PREMIAÇÃO') !== false ||
+                strpos($promotor, 'PREMIACAO') !== false
+            );
+
+            if ($ehCotaPremiacao) {
+                $titulo['status_inadimplencia'] = 'ADIMPLENTE';
+                continue;
+            }
+
             $parcelasPagas = (int)$titulo['qtd_parcelas_pagas'];
             $totalParcelas = (int)$titulo['quantidade_parcelas_venda'];
             $statusTitulo = $titulo['status_titulo'] ?? 'Ativo';
@@ -344,6 +373,27 @@ if (!empty($dataInicio) && !empty($dataFim)) {
         // Aplicar mesma lógica rigorosa para todos os títulos
         foreach ($todosTitulos as &$tit) {
             if (empty($tit['data_primeira_venda']) || !isset($tit['qtd_parcelas_pagas'])) {
+                continue;
+            }
+
+            // Verificar se é cota de premiação
+            $np = strtoupper($tit['nome_produto_atual'] ?? $tit['nome_produto_original'] ?? '');
+            $nt = strtoupper($tit['numero_titulo'] ?? '');
+            $pr = strtoupper($tit['promotor'] ?? '');
+
+            $ehPrem = (
+                strpos($np, 'SAP') !== false ||
+                strpos($np, 'DIP') !== false ||
+                strpos($nt, '-SAP') !== false ||
+                strpos($nt, '-DIP') !== false ||
+                strpos($pr, 'AQUABEAT') !== false ||
+                strpos($pr, 'DOUGLAS RIBEIRO') !== false ||
+                strpos($pr, 'PREMIAÇÃO') !== false ||
+                strpos($pr, 'PREMIACAO') !== false
+            );
+
+            if ($ehPrem) {
+                $contadores['adimplente']++;
                 continue;
             }
 
@@ -2276,10 +2326,20 @@ endif;
             document.getElementById('dataFim').value = formatarData(hoje);
         }
 
-        // Função para definir todo o período (limpar filtro de data)
+        // Função para definir todo o período (da primeira venda até hoje)
         function setPeriodoCompleto() {
-            document.getElementById('dataInicio').value = '';
-            document.getElementById('dataFim').value = '';
+            const hoje = new Date();
+            const primeiraData = '<?php echo $primeiraDataVenda; ?>';
+
+            const formatarData = (data) => {
+                const ano = data.getFullYear();
+                const mes = String(data.getMonth() + 1).padStart(2, '0');
+                const dia = String(data.getDate()).padStart(2, '0');
+                return `${ano}-${mes}-${dia}`;
+            };
+
+            document.getElementById('dataInicio').value = primeiraData;
+            document.getElementById('dataFim').value = formatarData(hoje);
         }
 
         // Função para focar nos campos de data (modo personalizado)

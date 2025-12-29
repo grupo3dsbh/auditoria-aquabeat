@@ -29,6 +29,31 @@ class InadimplenciaHelper {
         $totalParcelas = (int)$titulo['quantidade_parcelas_venda'];
         $statusTitulo = $titulo['status_titulo'] ?? 'Ativo';
 
+        // REGRA ESPECIAL: Cotas de Premiação (SAP, DIP) não são cobradas
+        // Promotores: Aquabeat, Douglas Ribeiro, etc.
+        $nomeProduto = strtoupper($titulo['nome_produto_atual'] ?? $titulo['nome_produto_original'] ?? '');
+        $numeroTitulo = strtoupper($titulo['numero_titulo'] ?? '');
+        $promotor = strtoupper($titulo['promotor'] ?? '');
+
+        // Identificar cotas de premiação:
+        // - Produto contém SAP, DIP, ou número do título contém SAP/DIP
+        // - Promotores conhecidos de premiação
+        $ehCotaPremiacao = (
+            strpos($nomeProduto, 'SAP') !== false ||
+            strpos($nomeProduto, 'DIP') !== false ||
+            strpos($numeroTitulo, '-SAP') !== false ||
+            strpos($numeroTitulo, '-DIP') !== false ||
+            strpos($promotor, 'AQUABEAT') !== false ||
+            strpos($promotor, 'DOUGLAS RIBEIRO') !== false ||
+            strpos($promotor, 'PREMIAÇÃO') !== false ||
+            strpos($promotor, 'PREMIACAO') !== false
+        );
+
+        // Se for cota de premiação, sempre ADIMPLENTE (não há cobrança)
+        if ($ehCotaPremiacao) {
+            return 'ADIMPLENTE';
+        }
+
         // REGRA CRÍTICA: Se não pagou NENHUMA parcela (0/X), SEMPRE é INADIMPLENTE
         // Independente do status do título ou tempo decorrido
         if ($parcelasPagas == 0) {
