@@ -38,6 +38,7 @@
                         <li><a class="dropdown-item" href="<?php echo url('admin/index.php'); ?>"><i class="bi bi-house"></i> Painel Admin</a></li>
                         <li><a class="dropdown-item" href="<?php echo url('admin/usuarios.php'); ?>"><i class="bi bi-people"></i> Usuários</a></li>
                         <li><a class="dropdown-item" href="<?php echo url('admin/configuracoes.php'); ?>"><i class="bi bi-sliders"></i> Configurações</a></li>
+                        <li><a class="dropdown-item" href="<?php echo url('admin/api_tokens.php'); ?>"><i class="bi bi-key"></i> Tokens de API</a></li>
                         <li><a class="dropdown-item" href="<?php echo url('admin/logs.php'); ?>"><i class="bi bi-clock-history"></i> Logs</a></li>
                         <li><hr class="dropdown-divider"></li>
                         <li><a class="dropdown-item" href="<?php echo url('admin/queries.php'); ?>"><i class="bi bi-code-square"></i> Queries SQL</a></li>
