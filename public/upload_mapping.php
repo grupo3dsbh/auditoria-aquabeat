@@ -10,24 +10,6 @@ if (!isset($_SESSION['import_data'])) {
 
 $importData = $_SESSION['import_data'];
 $analysis = $importData['analysis'];
-
-// Processar mapeamento
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    try {
-        $mapeamento = $_POST['mapping'] ?? [];
-
-        $importer = new CSVImporter();
-        $result = $importer->processCSV($importData['importacao_id'], $mapeamento);
-
-        unset($_SESSION['import_data']);
-
-        setFlashMessage('success', "Importação concluída! {$result['linhas_processadas']} registros processados.");
-        redirect('index.php');
-
-    } catch (Exception $e) {
-        $error = $e->getMessage();
-    }
-}
 ?>
 <!DOCTYPE html>
 <html lang="pt-BR">
@@ -45,11 +27,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <h2><i class="bi bi-diagram-3"></i> Mapeamento de Colunas</h2>
         <p class="text-muted">Revise o mapeamento automático das colunas do CSV</p>
 
-        <?php if (isset($error)): ?>
-            <div class="alert alert-danger">
-                <?php echo sanitize($error); ?>
+        <div id="errorAlert" class="alert alert-danger d-none"></div>
+        <div id="progressContainer" class="d-none">
+            <div class="card">
+                <div class="card-body">
+                    <h5><i class="bi bi-hourglass-split"></i> Processando Importação...</h5>
+                    <div class="progress" style="height: 30px;">
+                        <div id="progressBar" class="progress-bar progress-bar-striped progress-bar-animated"
+                             role="progressbar" style="width: 0%" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
+                            0%
+                        </div>
+                    </div>
+                    <p class="mt-3 text-center">
+                        <strong id="progressText">Iniciando importação...</strong><br>
+                        <small class="text-muted" id="progressDetails"></small>
+                    </p>
+                </div>
             </div>
-        <?php endif; ?>
+        </div>
 
         <div class="alert alert-info">
             <i class="bi bi-info-circle"></i>
@@ -59,8 +54,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <strong>Delimitador:</strong> <?php echo $analysis['delimiter'] === "\t" ? 'TAB' : sanitize($analysis['delimiter']); ?>
         </div>
 
-        <form method="POST">
-            <div class="card">
+        <form id="mappingForm">
+            <div id="mappingCard" class="card">
                 <div class="card-header bg-success text-white">
                     <h5 class="mb-0">Colunas Detectadas</h5>
                 </div>
@@ -135,5 +130,108 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        const importacaoId = <?php echo $importData['importacao_id']; ?>;
+        const totalLinhas = <?php echo $analysis['total_rows']; ?>;
+        const chunkSize = 200;
+
+        let offset = 0;
+        let totalProcessed = 0;
+        let totalErrors = 0;
+
+        document.getElementById('mappingForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+
+            // Coletar mapeamento
+            const form = e.target;
+            const formData = new FormData(form);
+            const mapeamento = {};
+
+            for (let [key, value] of formData.entries()) {
+                const match = key.match(/mapping\[(\d+)\]/);
+                if (match && value) {
+                    mapeamento[match[1]] = value;
+                }
+            }
+
+            // Esconder formulário e mostrar progresso
+            document.getElementById('mappingCard').classList.add('d-none');
+            document.getElementById('progressContainer').classList.remove('d-none');
+
+            // Iniciar processamento
+            await processNextChunk(mapeamento);
+        });
+
+        async function processNextChunk(mapeamento) {
+            try {
+                const response = await fetch('process_chunk.php', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        importacao_id: importacaoId,
+                        mapeamento: mapeamento,
+                        offset: offset,
+                        chunk_size: chunkSize
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error('Erro na requisição: ' + response.status);
+                }
+
+                const result = await response.json();
+
+                if (!result.success) {
+                    throw new Error(result.error || 'Erro desconhecido');
+                }
+
+                // Atualizar contadores
+                totalProcessed = result.total_processed;
+                totalErrors = result.total_errors;
+                offset = result.next_offset;
+
+                // Calcular progresso
+                const progress = Math.min(100, Math.round((totalProcessed + totalErrors) / totalLinhas * 100));
+
+                // Atualizar barra de progresso
+                const progressBar = document.getElementById('progressBar');
+                progressBar.style.width = progress + '%';
+                progressBar.textContent = progress + '%';
+                progressBar.setAttribute('aria-valuenow', progress);
+
+                // Atualizar texto
+                document.getElementById('progressText').textContent =
+                    `Processando... ${totalProcessed + totalErrors} de ${totalLinhas} linhas`;
+                document.getElementById('progressDetails').textContent =
+                    `✓ ${totalProcessed} processadas | ✗ ${totalErrors} com erro`;
+
+                // Se não completou, processar próximo chunk
+                if (result.has_more) {
+                    await processNextChunk(mapeamento);
+                } else {
+                    // Completou!
+                    document.getElementById('progressText').innerHTML =
+                        '<i class="bi bi-check-circle text-success"></i> Importação Concluída!';
+                    document.getElementById('progressBar').classList.remove('progress-bar-animated');
+                    document.getElementById('progressBar').classList.add('bg-success');
+
+                    // Redirecionar após 2 segundos
+                    setTimeout(() => {
+                        window.location.href = 'index.php?import_success=1';
+                    }, 2000);
+                }
+
+            } catch (error) {
+                console.error('Erro:', error);
+                document.getElementById('progressContainer').classList.add('d-none');
+                const errorAlert = document.getElementById('errorAlert');
+                errorAlert.textContent = 'Erro ao processar importação: ' + error.message;
+                errorAlert.classList.remove('d-none');
+                document.getElementById('mappingCard').classList.remove('d-none');
+            }
+        }
+    </script>
 </body>
 </html>

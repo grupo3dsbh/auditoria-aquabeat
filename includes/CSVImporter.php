@@ -364,6 +364,143 @@ class CSVImporter {
     }
 
     /**
+     * Processar CSV em chunks (para evitar timeout)
+     * Retorna informações sobre o progresso
+     */
+    public function processCSVChunk($importacaoId, $mapeamento, $offset = 0, $chunkSize = 200) {
+        $this->importacaoId = $importacaoId;
+        $this->mapeamento = $mapeamento;
+
+        // Obter dados da importação
+        $importacao = $this->db->fetchOne(
+            "SELECT * FROM importacoes WHERE id = ?",
+            [$importacaoId]
+        );
+
+        if (!$importacao) {
+            throw new Exception('Importação não encontrada.');
+        }
+
+        $caminhoArquivo = $importacao['caminho_arquivo'];
+
+        if (!file_exists($caminhoArquivo)) {
+            throw new Exception('Arquivo não encontrado.');
+        }
+
+        // Na primeira chamada (offset = 0), atualizar status e salvar mapeamento
+        if ($offset == 0) {
+            $this->db->update('importacoes', [
+                'status' => 'processando',
+                'mapeamento_colunas' => json_encode($mapeamento),
+                'iniciado_em' => date('Y-m-d H:i:s'),
+                'linhas_processadas' => 0,
+                'linhas_erro' => 0
+            ], 'id = ?', [$importacaoId]);
+        }
+
+        $file = fopen($caminhoArquivo, 'r');
+        $encoding = $this->detectEncoding($file);
+        $delimiter = $this->detectDelimiter($file);
+
+        // Pular cabeçalho
+        fgetcsv($file, 0, $delimiter);
+
+        // Pular até o offset
+        $currentLine = 0;
+        while ($currentLine < $offset && fgetcsv($file, 0, $delimiter) !== false) {
+            $currentLine++;
+        }
+
+        // Processar chunk
+        $batch = [];
+        $linesRead = 0;
+        $linesProcessed = 0;
+        $linesError = 0;
+
+        while ($linesRead < $chunkSize && ($row = fgetcsv($file, 0, $delimiter)) !== false) {
+            $linesRead++;
+
+            // Converter encoding se necessário
+            if ($encoding !== 'UTF-8') {
+                $row = array_map(function($col) use ($encoding) {
+                    return mb_convert_encoding($col, 'UTF-8', $encoding);
+                }, $row);
+            }
+
+            try {
+                $data = $this->mapRowToData($row);
+                $data['importacao_id'] = $importacaoId;
+                $batch[] = $data;
+                $linesProcessed++;
+            } catch (Exception $e) {
+                $linesError++;
+                Logger::warning("Error processing CSV row", [
+                    'importacao_id' => $importacaoId,
+                    'linha' => $offset + $linesRead,
+                    'erro' => $e->getMessage()
+                ]);
+            }
+        }
+
+        // Inserir batch
+        if (!empty($batch)) {
+            $this->insertBatch($batch);
+        }
+
+        // Verificar se tem mais linhas
+        $hasMore = fgetcsv($file, 0, $delimiter) !== false;
+        fclose($file);
+
+        // Atualizar progresso
+        $totalProcessed = $importacao['linhas_processadas'] + $linesProcessed;
+        $totalErrors = $importacao['linhas_erro'] + $linesError;
+
+        $this->db->update('importacoes', [
+            'linhas_processadas' => $totalProcessed,
+            'linhas_erro' => $totalErrors
+        ], 'id = ?', [$importacaoId]);
+
+        // Se não tem mais linhas, finalizar
+        if (!$hasMore) {
+            // Processar análises agregadas
+            $this->processAggregations();
+
+            // Recalcular status de inadimplência
+            Logger::info("Recalculando status de inadimplência", ['importacao_id' => $importacaoId]);
+            $recalculo = InadimplenciaHelper::recalcularStatusImportacao($importacaoId);
+            Logger::info("Status de inadimplência recalculados", $recalculo);
+
+            // Atualizar status final
+            $this->db->update('importacoes', [
+                'status' => 'concluido',
+                'total_linhas' => $totalProcessed + $totalErrors,
+                'concluido_em' => date('Y-m-d H:i:s')
+            ], 'id = ?', [$importacaoId]);
+
+            Logger::info("Import completed", [
+                'importacao_id' => $importacaoId,
+                'total' => $totalProcessed + $totalErrors,
+                'processadas' => $totalProcessed,
+                'erros' => $totalErrors
+            ]);
+
+            Logger::logAction(Auth::userId(), 'import_csv', 'Completou importação de CSV', 'importacoes', $importacaoId);
+        }
+
+        return [
+            'success' => true,
+            'chunk_processed' => $linesRead,
+            'chunk_success' => $linesProcessed,
+            'chunk_errors' => $linesError,
+            'total_processed' => $totalProcessed,
+            'total_errors' => $totalErrors,
+            'has_more' => $hasMore,
+            'next_offset' => $offset + $linesRead,
+            'completed' => !$hasMore
+        ];
+    }
+
+    /**
      * Converter valor decimal de CSV para float
      * Detecta automaticamente formato brasileiro (1.234,56) ou americano (1234.56)
      */
