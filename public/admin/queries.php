@@ -199,7 +199,7 @@ $success = $success ?? getFlashMessage('success');
                                     <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
                                         <h5 class="mb-0"><i class="bi bi-eye"></i> <?php echo sanitize($queryFile); ?></h5>
                                         <div>
-                                            <button onclick="copyToClipboard()" class="btn btn-sm btn-light">
+                                            <button onclick="copyToClipboard(this)" class="btn btn-sm btn-light">
                                                 <i class="bi bi-clipboard"></i> Copiar
                                             </button>
                                             <button onclick="toggleEditMode()" class="btn btn-sm btn-warning">
@@ -289,12 +289,11 @@ $success = $success ?? getFlashMessage('success');
         }
 
         // Copy to clipboard
-        function copyToClipboard() {
+        function copyToClipboard(btn) {
             const code = document.querySelector('.language-sql').textContent;
 
             navigator.clipboard.writeText(code).then(function() {
                 // Mostrar feedback
-                const btn = event.target.closest('button');
                 const originalHTML = btn.innerHTML;
                 btn.innerHTML = '<i class="bi bi-check"></i> Copiado!';
                 btn.classList.remove('btn-light');
