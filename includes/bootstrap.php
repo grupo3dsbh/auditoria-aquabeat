@@ -201,6 +201,13 @@ function setConfig($key, $value, $descricao = null, $tipo = 'texto') {
 
 function requireAuth($redirectTo = 'login.php') {
     if (!Auth::isLoggedIn()) {
+        // Se o redirect não começa com / ou http, adicionar caminho base
+        if (strpos($redirectTo, '/') !== 0 && strpos($redirectTo, 'http') !== 0) {
+            // Determinar caminho base relativo ao diretório atual
+            $scriptDir = dirname($_SERVER['SCRIPT_NAME']);
+            $baseDir = str_replace('/admin', '', $scriptDir);
+            $redirectTo = $baseDir . '/' . $redirectTo;
+        }
         redirect($redirectTo);
     }
 }
