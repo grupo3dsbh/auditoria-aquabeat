@@ -651,6 +651,16 @@ class CSVImporter {
      */
     private function insertBatch($batch) {
         foreach ($batch as $data) {
+            // Extrair dados de cartões ANTES de inserir (serão processados separadamente)
+            $numeroCartao = $data['numero_cartao'] ?? null;
+            $bandeira = $data['bandeira'] ?? null;
+            $tipoPagamentoCartao = $data['tipo_pagamento_cartao'] ?? null;
+
+            // Remover campos de cartão dos dados principais (vão para tabela separada)
+            unset($data['numero_cartao']);
+            unset($data['bandeira']);
+            unset($data['tipo_pagamento_cartao']);
+
             // Verificar se já existe um título com este numero_titulo e importacao_id
             $existing = $this->db->fetchOne(
                 "SELECT id FROM titulos WHERE numero_titulo = ? AND importacao_id = ?",
@@ -658,11 +668,59 @@ class CSVImporter {
             );
 
             if ($existing) {
-                // Atualizar registro existente se houver diferenças
-                $this->db->update('titulos', $data, 'id = ?', [$existing['id']]);
+                // Atualizar registro existente
+                $tituloId = $existing['id'];
+                $this->db->update('titulos', $data, 'id = ?', [$tituloId]);
             } else {
                 // Inserir novo registro
-                $this->db->insert('titulos', $data);
+                $tituloId = $this->db->insert('titulos', $data);
+            }
+
+            // Processar e inserir cartões na tabela separada
+            if ($numeroCartao && $tituloId) {
+                $this->inserirCartoes($tituloId, $numeroCartao, $bandeira, $tipoPagamentoCartao);
+            }
+        }
+    }
+
+    /**
+     * Inserir cartões na tabela titulo_cartoes
+     * Processa strings concatenadas com ' | ' e insere cada cartão separadamente
+     */
+    private function inserirCartoes($tituloId, $numeroCartoes, $bandeiras, $tipoPagamento) {
+        // Deletar cartões antigos deste título (para re-importação)
+        try {
+            $this->db->delete('titulo_cartoes', 'titulo_id = ?', [$tituloId]);
+        } catch (Exception $e) {
+            // Tabela pode não existir ainda
+            return;
+        }
+
+        // Separar por pipe |
+        $cartoes = array_map('trim', explode('|', $numeroCartoes ?? ''));
+        $listaBandeiras = array_map('trim', explode('|', $bandeiras ?? ''));
+
+        $ordem = 1;
+        foreach ($cartoes as $index => $cartao) {
+            if (empty($cartao)) continue;
+
+            // Pegar bandeira correspondente (mesmo índice) ou última disponível
+            $bandeira = $listaBandeiras[$index] ?? end($listaBandeiras) ?? null;
+
+            try {
+                $this->db->insert('titulo_cartoes', [
+                    'titulo_id' => $tituloId,
+                    'numero_cartao' => $cartao,
+                    'bandeira' => $bandeira,
+                    'tipo_pagamento' => $tipoPagamento,
+                    'ordem_uso' => $ordem++
+                ]);
+            } catch (Exception $e) {
+                Logger::warning("Erro ao inserir cartão", [
+                    'titulo_id' => $tituloId,
+                    'cartao' => $cartao,
+                    'erro' => $e->getMessage()
+                ]);
             }
         }
     }
