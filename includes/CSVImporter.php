@@ -462,29 +462,53 @@ class CSVImporter {
 
         // Se não tem mais linhas, finalizar
         if (!$hasMore) {
-            // Processar análises agregadas
-            $this->processAggregations();
+            try {
+                Logger::info("Finalizando importação - Processando agregações", ['importacao_id' => $importacaoId]);
 
-            // Recalcular status de inadimplência
-            Logger::info("Recalculando status de inadimplência", ['importacao_id' => $importacaoId]);
-            $recalculo = InadimplenciaHelper::recalcularStatusImportacao($importacaoId);
-            Logger::info("Status de inadimplência recalculados", $recalculo);
+                // Processar análises agregadas
+                $this->processAggregations();
 
-            // Atualizar status final
-            $this->db->update('importacoes', [
-                'status' => 'concluido',
-                'total_linhas' => $totalProcessed + $totalErrors,
-                'concluido_em' => date('Y-m-d H:i:s')
-            ], 'id = ?', [$importacaoId]);
+                Logger::info("Agregações concluídas - Recalculando inadimplência", ['importacao_id' => $importacaoId]);
 
-            Logger::info("Import completed", [
-                'importacao_id' => $importacaoId,
-                'total' => $totalProcessed + $totalErrors,
-                'processadas' => $totalProcessed,
-                'erros' => $totalErrors
-            ]);
+                // Recalcular status de inadimplência
+                $recalculo = InadimplenciaHelper::recalcularStatusImportacao($importacaoId);
 
-            Logger::logAction(Auth::userId(), 'import_csv', 'Completou importação de CSV', 'importacoes', $importacaoId);
+                Logger::info("Status de inadimplência recalculados", $recalculo);
+
+                // Atualizar status final
+                $this->db->update('importacoes', [
+                    'status' => 'concluido',
+                    'total_linhas' => $totalProcessed + $totalErrors,
+                    'concluido_em' => date('Y-m-d H:i:s')
+                ], 'id = ?', [$importacaoId]);
+
+                Logger::info("Import completed", [
+                    'importacao_id' => $importacaoId,
+                    'total' => $totalProcessed + $totalErrors,
+                    'processadas' => $totalProcessed,
+                    'erros' => $totalErrors
+                ]);
+
+                Logger::logAction(Auth::userId(), 'import_csv', 'Completou importação de CSV', 'importacoes', $importacaoId);
+
+            } catch (Exception $e) {
+                Logger::error("Erro ao finalizar importação", [
+                    'importacao_id' => $importacaoId,
+                    'error' => $e->getMessage(),
+                    'trace' => $e->getTraceAsString()
+                ]);
+
+                // Marcar como concluída mesmo com erro nas agregações
+                $this->db->update('importacoes', [
+                    'status' => 'concluido',
+                    'total_linhas' => $totalProcessed + $totalErrors,
+                    'concluido_em' => date('Y-m-d H:i:s'),
+                    'mensagem_erro' => 'Importação concluída, mas houve erro nas agregações: ' . $e->getMessage()
+                ], 'id = ?', [$importacaoId]);
+
+                // Re-lançar exceção para que o frontend saiba
+                throw new Exception('Dados importados com sucesso, mas houve erro ao calcular estatísticas: ' . $e->getMessage());
+            }
         }
 
         return [

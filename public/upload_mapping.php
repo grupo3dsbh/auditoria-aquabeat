@@ -184,7 +184,11 @@ $analysis = $importData['analysis'];
                 const result = await response.json();
 
                 if (!result.success) {
-                    throw new Error(result.error || 'Erro desconhecido');
+                    let errorMsg = result.error || 'Erro desconhecido';
+                    if (result.details) {
+                        errorMsg += ` (${result.details.file}:${result.details.line})`;
+                    }
+                    throw new Error(errorMsg);
                 }
 
                 // Atualizar contadores
@@ -224,12 +228,30 @@ $analysis = $importData['analysis'];
                 }
 
             } catch (error) {
-                console.error('Erro:', error);
+                console.error('Erro completo:', error);
                 document.getElementById('progressContainer').classList.add('d-none');
                 const errorAlert = document.getElementById('errorAlert');
-                errorAlert.textContent = 'Erro ao processar importação: ' + error.message;
+
+                let errorMsg = 'Erro ao processar importação: ' + error.message;
+
+                // Se a mensagem indica que os dados foram importados mas houve erro nas estatísticas
+                if (error.message.includes('Dados importados com sucesso')) {
+                    errorMsg += '<br><br><strong>✓ Os títulos foram importados corretamente!</strong><br>' +
+                                'Apenas as estatísticas agregadas falharam. Você pode visualizar os dados normalmente.';
+
+                    // Redirecionar mesmo com erro parcial
+                    setTimeout(() => {
+                        window.location.href = 'index.php?import_partial=1';
+                    }, 5000);
+                }
+
+                errorAlert.innerHTML = errorMsg;
                 errorAlert.classList.remove('d-none');
-                document.getElementById('mappingCard').classList.remove('d-none');
+
+                // Só mostrar formulário novamente se for erro total
+                if (!error.message.includes('Dados importados com sucesso')) {
+                    document.getElementById('mappingCard').classList.remove('d-none');
+                }
             }
         }
     </script>
