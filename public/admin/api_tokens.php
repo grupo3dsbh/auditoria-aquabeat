@@ -7,6 +7,13 @@ requirePermission('admin');
 
 $db = Database::getInstance();
 $userId = $_SESSION['user_id'];
+$isAdmin = Auth::isAdmin();
+
+// Buscar todos os usuários (para seleção no formulário, se admin)
+$usuarios = [];
+if ($isAdmin) {
+    $usuarios = $db->fetchAll("SELECT id, nome, email FROM usuarios ORDER BY nome");
+}
 
 // Processar ações
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -20,12 +27,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $expiraDias = !empty($_POST['expira_dias']) ? (int)$_POST['expira_dias'] : null;
                 $expiraEm = $expiraDias ? date('Y-m-d H:i:s', strtotime("+{$expiraDias} days")) : null;
 
+                // Se for admin, pode escolher o usuário; senão usa o próprio
+                $usuarioIdToken = $isAdmin && !empty($_POST['usuario_id']) ? (int)$_POST['usuario_id'] : $userId;
+
+                // Processar permissões
+                $permissoes = [];
+                if (!empty($_POST['permissoes'])) {
+                    $permissoes = is_array($_POST['permissoes']) ? $_POST['permissoes'] : [$_POST['permissoes']];
+                }
+                $permissoesJson = !empty($permissoes) ? json_encode($permissoes) : null;
+
                 $db->insert('api_tokens', [
-                    'usuario_id' => $userId,
+                    'usuario_id' => $usuarioIdToken,
                     'nome' => $nome,
                     'token' => $token,
                     'descricao' => $descricao,
                     'expira_em' => $expiraEm,
+                    'permissoes' => $permissoesJson,
                     'ativo' => 1
                 ]);
 
@@ -50,12 +68,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-// Buscar todos os tokens do usuário
-$tokens = $db->fetchAll("
-    SELECT * FROM api_tokens
-    WHERE usuario_id = ?
-    ORDER BY criado_em DESC
-", [$userId]);
+// Buscar tokens: se admin, buscar todos; senão apenas do usuário atual
+if ($isAdmin) {
+    $tokens = $db->fetchAll("
+        SELECT t.*, u.nome as usuario_nome, u.email as usuario_email
+        FROM api_tokens t
+        INNER JOIN usuarios u ON t.usuario_id = u.id
+        ORDER BY t.criado_em DESC
+    ");
+} else {
+    $tokens = $db->fetchAll("
+        SELECT t.*, u.nome as usuario_nome, u.email as usuario_email
+        FROM api_tokens t
+        INNER JOIN usuarios u ON t.usuario_id = u.id
+        WHERE t.usuario_id = ?
+        ORDER BY t.criado_em DESC
+    ", [$userId]);
+}
 
 // Detectar esquema HTTP/HTTPS de forma segura
 $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ||
@@ -124,6 +153,44 @@ $baseUrl = $scheme . '://' . $_SERVER['HTTP_HOST'] . dirname($_SERVER['SCRIPT_NA
                         </div>
                     </div>
 
+                    <?php if ($isAdmin): ?>
+                    <div class="mb-3">
+                        <label class="form-label">Usuário *</label>
+                        <select name="usuario_id" class="form-control" required>
+                            <option value="">Selecione um usuário...</option>
+                            <?php foreach ($usuarios as $usuario): ?>
+                                <option value="<?php echo $usuario['id']; ?>">
+                                    <?php echo sanitize($usuario['nome']); ?> (<?php echo sanitize($usuario['email']); ?>)
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                        <small class="text-muted">Selecione o usuário que terá acesso a este token</small>
+                    </div>
+                    <?php endif; ?>
+
+                    <div class="mb-3">
+                        <label class="form-label">Permissões</label>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="permissoes[]" value="gerar_pdf" id="permPDF" checked>
+                            <label class="form-check-label" for="permPDF">
+                                Gerar PDF com Análise IA
+                            </label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="permissoes[]" value="consultar_relatorios" id="permRelatorios" checked>
+                            <label class="form-check-label" for="permRelatorios">
+                                Consultar Relatórios
+                            </label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="permissoes[]" value="exportar_dados" id="permExportar" checked>
+                            <label class="form-check-label" for="permExportar">
+                                Exportar Dados
+                            </label>
+                        </div>
+                        <small class="text-muted">Selecione as permissões que este token terá</small>
+                    </div>
+
                     <div class="mb-3">
                         <label class="form-label">Descrição</label>
                         <textarea name="descricao" class="form-control" rows="2"
@@ -153,8 +220,9 @@ $baseUrl = $scheme . '://' . $_SERVER['HTTP_HOST'] . dirname($_SERVER['SCRIPT_NA
                             <thead>
                                 <tr>
                                     <th>Nome</th>
+                                    <?php if ($isAdmin): ?><th>Usuário</th><?php endif; ?>
                                     <th>Token</th>
-                                    <th>Descrição</th>
+                                    <th>Permissões</th>
                                     <th>Status</th>
                                     <th>Último Uso</th>
                                     <th>Expira Em</th>
@@ -167,11 +235,20 @@ $baseUrl = $scheme . '://' . $_SERVER['HTTP_HOST'] . dirname($_SERVER['SCRIPT_NA
                                     <?php
                                     $expirado = $token['expira_em'] && strtotime($token['expira_em']) < time();
                                     $ativo = $token['ativo'] && !$expirado;
+                                    $permissoes = $token['permissoes'] ? json_decode($token['permissoes'], true) : [];
                                     ?>
                                     <tr class="<?php echo $ativo ? '' : 'table-secondary'; ?>">
                                         <td>
                                             <strong><?php echo sanitize($token['nome']); ?></strong>
                                         </td>
+                                        <?php if ($isAdmin): ?>
+                                        <td>
+                                            <small>
+                                                <?php echo sanitize($token['usuario_nome']); ?><br>
+                                                <span class="text-muted"><?php echo sanitize($token['usuario_email']); ?></span>
+                                            </small>
+                                        </td>
+                                        <?php endif; ?>
                                         <td>
                                             <code class="bg-light p-1 rounded" style="font-size: 0.85em;">
                                                 <?php echo sanitize($token['token']); ?>
@@ -182,7 +259,15 @@ $baseUrl = $scheme . '://' . $_SERVER['HTTP_HOST'] . dirname($_SERVER['SCRIPT_NA
                                             </button>
                                         </td>
                                         <td>
-                                            <small><?php echo sanitize($token['descricao']); ?></small>
+                                            <small>
+                                                <?php if (!empty($permissoes)): ?>
+                                                    <?php foreach ($permissoes as $perm): ?>
+                                                        <span class="badge bg-info me-1"><?php echo sanitize($perm); ?></span>
+                                                    <?php endforeach; ?>
+                                                <?php else: ?>
+                                                    <span class="text-muted">Todas</span>
+                                                <?php endif; ?>
+                                            </small>
                                         </td>
                                         <td>
                                             <?php if ($ativo): ?>

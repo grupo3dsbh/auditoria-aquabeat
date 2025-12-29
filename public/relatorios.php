@@ -16,6 +16,22 @@ if (!$ultimaImportacao) {
 
 $importacaoId = $ultimaImportacao['id'];
 
+// Buscar token ativo do usuário atual (para auto-preenchimento no PDF)
+$tokenUsuario = null;
+$userId = $_SESSION['user_id'];
+try {
+    $tokenUsuario = $db->fetchOne("
+        SELECT token FROM api_tokens
+        WHERE usuario_id = ?
+        AND ativo = 1
+        AND (expira_em IS NULL OR expira_em > NOW())
+        ORDER BY criado_em DESC
+        LIMIT 1
+    ", [$userId]);
+} catch (Exception $e) {
+    // Tabela pode não existir ainda, ignorar erro
+}
+
 // Buscar primeira data de venda no sistema (para botão "Todo Período")
 $primeiraDataVenda = $db->fetchColumn("SELECT MIN(data_primeira_venda) FROM titulos WHERE importacao_id = ?", [$importacaoId]);
 if ($primeiraDataVenda) {
@@ -27,8 +43,8 @@ if ($primeiraDataVenda) {
 // Detectar se é visualização apenas de cartões
 $viewCartoes = !empty($_GET['view']) && $_GET['view'] === 'cartoes';
 
-// Calcular data fim padrão: último dia de 2 meses antes do mês atual
-$dataFimPadrao = date('Y-m-t', strtotime('-2 months'));
+// Calcular data fim padrão: data de hoje
+$dataFimPadrao = date('Y-m-d');
 
 // Filtros
 $filtros = [];
@@ -2318,6 +2334,7 @@ endif;
             const hoje = new Date();
             const dataInicio = new Date();
             dataInicio.setMonth(dataInicio.getMonth() - meses);
+            dataInicio.setDate(1); // Define para o primeiro dia do mês
 
             // Formatar para YYYY-MM-DD
             const formatarData = (data) => {
@@ -2524,11 +2541,20 @@ endif;
             const btn = document.getElementById('btnGerarPDF');
             const originalHTML = btn.innerHTML;
 
-            // Solicitar token de API
-            const token = prompt('Cole seu token de API:\n\n(Gere um token em Admin → Tokens de API)');
-            if (!token) {
-                alert('Token não fornecido. Gere um token em Admin → Tokens de API');
-                return;
+            // Verificar se há token do usuário disponível
+            const tokenUsuario = <?php echo $tokenUsuario ? "'" . $tokenUsuario['token'] . "'" : 'null'; ?>;
+
+            let token;
+            if (tokenUsuario) {
+                // Usar token automaticamente
+                token = tokenUsuario;
+            } else {
+                // Solicitar token de API
+                token = prompt('Cole seu token de API:\n\n(Você ainda não tem um token. Gere um em Admin → Tokens de API)');
+                if (!token) {
+                    alert('Token não fornecido. Gere um token em Admin → Tokens de API');
+                    return;
+                }
             }
 
             btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Gerando relatório com IA...';
