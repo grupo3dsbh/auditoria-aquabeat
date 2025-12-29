@@ -2518,6 +2518,74 @@ endif;
                     btn.disabled = false;
                 });
         }
+
+        // Função para gerar PDF com análise IA
+        async function gerarPDFComIA() {
+            const btn = document.getElementById('btnGerarPDF');
+            const originalHTML = btn.innerHTML;
+
+            // Solicitar token de API
+            const token = prompt('Cole seu token de API:\n\n(Gere um token em Admin → Tokens de API)');
+            if (!token) {
+                alert('Token não fornecido. Gere um token em Admin → Tokens de API');
+                return;
+            }
+
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Gerando relatório com IA...';
+            btn.disabled = true;
+
+            try {
+                // Coletar filtros atuais
+                const body = {
+                    data_inicio: document.getElementById('dataInicio').value,
+                    data_fim: document.getElementById('dataFim').value
+                };
+
+                // Adicionar outros filtros se estiverem preenchidos
+                const promotor = document.getElementById('promotorSelect')?.value;
+                if (promotor) body.promotor = promotor;
+
+                // Chamar API
+                const response = await fetch(window.location.origin + '/api/gerar_pdf_relatorio.php', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(body)
+                });
+
+                const data = await response.json();
+
+                if (!response.ok || !data.success) {
+                    throw new Error(data.error || 'Erro ao gerar relatório');
+                }
+
+                // Abrir HTML em nova janela
+                const newWindow = window.open('', '_blank');
+                newWindow.document.write(data.html);
+                newWindow.document.close();
+
+                // Mostrar estatísticas
+                alert(`✅ Relatório gerado com sucesso!\n\n` +
+                      `📊 Estatísticas:\n` +
+                      `• Total: ${data.estatisticas.total_titulos} títulos\n` +
+                      `• Inadimplentes: ${data.estatisticas.inadimplentes}\n` +
+                      `• Taxa: ${data.estatisticas.taxa_inadimplencia}%\n\n` +
+                      `💡 Use Ctrl+P na nova janela para salvar como PDF`);
+
+            } catch (error) {
+                console.error('Erro:', error);
+                alert(`❌ Erro ao gerar relatório:\n${error.message}\n\n` +
+                      `Verifique:\n` +
+                      `• Token de API válido\n` +
+                      `• Conexão com a internet\n` +
+                      `• Console do navegador (F12) para mais detalhes`);
+            } finally {
+                btn.innerHTML = originalHTML;
+                btn.disabled = false;
+            }
+        }
     </script>
 </body>
 </html>
