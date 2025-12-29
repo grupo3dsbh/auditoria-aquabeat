@@ -1,6 +1,6 @@
 /*
 ================================================================================
-QUERY PARA EXPORTAÇÃO DE DADOS COM HISTÓRICO COMPLETO DE CARTÕES
+QUERY PARA EXPORTAÇÃO DE DADOS COM HISTÓRICO COMPLETO DE CARTÕES - CORRIGIDA
 ================================================================================
 Para usar com a nova estrutura de tabela separada titulo_cartoes
 
@@ -22,62 +22,44 @@ DECLARE @Periodo3Meses DATETIME = DATEADD(MONTH, -3, GETDATE());
 DECLARE @Periodo6Meses DATETIME = DATEADD(MONTH, -6, GETDATE());
 DECLARE @Periodo1Ano DATETIME = DATEADD(YEAR, -1, GETDATE());
 
--- CTE para produto mais recente
-WITH UltimoProduto AS (
-    SELECT
-        NumeroTitulo,
-        NomeProduto,
-        Categoria,
-        StatusTitulo,
-        ROW_NUMBER() OVER (PARTITION BY NumeroTitulo ORDER BY DataVenda DESC) AS rn
-    FROM [dbo].[PaidTitles]
-    WHERE [DataCadastro] BETWEEN @DataInicio AND @DataFim
-),
--- CTE para primeiro produto
-PrimeiroProduto AS (
-    SELECT
-        NumeroTitulo,
-        NomeProduto AS NomeProdutoOriginal,
-        DataVenda AS DataPrimeiraVenda,
-        ROW_NUMBER() OVER (PARTITION BY NumeroTitulo ORDER BY DataVenda ASC) AS rn
-    FROM [dbo].[PaidTitles]
-    WHERE [DataCadastro] BETWEEN @DataInicio AND @DataFim
-),
--- CTE para TODOS os cartões (não apenas o último!)
-TodosCartoes AS (
-    SELECT
-        NumeroTitulo,
-        -- Concatenar TODOS os cartões únicos com " | "
-        STRING_AGG(NumeroCartao, ' | ') AS TodosNumeroCartao,
-        -- Concatenar TODAS as bandeiras únicas com " | "
-        STRING_AGG(Bandeira, ' | ') AS TodasBandeiras,
-        -- Tipo de pagamento (pegar o mais recente)
-        MAX(PaymentType) AS TipoPagamentoCartao
-    FROM (
-        SELECT DISTINCT
-            NumeroTitulo,
-            NumeroCartao,
-            Bandeira,
-            PaymentType
-        FROM [dbo].[PaidTitles]
-        WHERE NumeroCartao IS NOT NULL
-          AND [DataCadastro] BETWEEN @DataInicio AND @DataFim
-    ) AS CartoesUnicos
-    GROUP BY NumeroTitulo
-)
--- SELECT principal
+-- SELECT principal com todas as agregações
 SELECT
     -- Identificação do Título
     pt.NumeroTitulo,
-    pp.NomeProdutoOriginal,
-    up.NomeProduto AS NomeProdutoAtual,
-    CASE WHEN pp.NomeProdutoOriginal <> up.NomeProduto THEN 'Sim' ELSE 'Não' END AS AlterouVagas,
-    up.Categoria,
-    up.StatusTitulo,
+
+    -- Produto Original (primeira venda)
+    (SELECT TOP 1 NomeProduto
+     FROM [dbo].[PaidTitles]
+     WHERE NumeroTitulo = pt.NumeroTitulo
+     ORDER BY DataVenda ASC) AS NomeProdutoOriginal,
+
+    -- Produto Atual (última venda)
+    (SELECT TOP 1 NomeProduto
+     FROM [dbo].[PaidTitles]
+     WHERE NumeroTitulo = pt.NumeroTitulo
+     ORDER BY DataVenda DESC) AS NomeProdutoAtual,
+
+    -- Alterou Vagas?
+    CASE WHEN
+        (SELECT TOP 1 NomeProduto FROM [dbo].[PaidTitles] WHERE NumeroTitulo = pt.NumeroTitulo ORDER BY DataVenda ASC) <>
+        (SELECT TOP 1 NomeProduto FROM [dbo].[PaidTitles] WHERE NumeroTitulo = pt.NumeroTitulo ORDER BY DataVenda DESC)
+    THEN 'Sim' ELSE 'Não' END AS AlterouVagas,
+
+    -- Categoria
+    (SELECT TOP 1 Categoria
+     FROM [dbo].[PaidTitles]
+     WHERE NumeroTitulo = pt.NumeroTitulo
+     ORDER BY DataVenda DESC) AS Categoria,
+
+    -- Status
+    (SELECT TOP 1 StatusTitulo
+     FROM [dbo].[PaidTitles]
+     WHERE NumeroTitulo = pt.NumeroTitulo
+     ORDER BY DataVenda DESC) AS StatusTitulo,
 
     -- Datas
     MAX(pt.DataCadastro) AS DataCadastro,
-    pp.DataPrimeiraVenda,
+    MIN(pt.DataVenda) AS DataPrimeiraVenda,
     MAX(pt.DataVenda) AS DataUltimaVenda,
 
     -- Cliente
@@ -91,9 +73,23 @@ SELECT
     MAX(pt.Gerente) AS Gerente,
 
     -- TODOS OS CARTÕES (concatenados com " | ")
-    tc.TodosNumeroCartao AS NumeroCartao,
-    tc.TodasBandeiras AS Bandeira,
-    tc.TipoPagamentoCartao,
+    STUFF((
+        SELECT DISTINCT ' | ' + NumeroCartao
+        FROM [dbo].[PaidTitles]
+        WHERE NumeroTitulo = pt.NumeroTitulo
+          AND NumeroCartao IS NOT NULL
+        FOR XML PATH(''), TYPE).value('.', 'NVARCHAR(MAX)'), 1, 3, '') AS NumeroCartao,
+
+    -- TODAS AS BANDEIRAS (concatenadas com " | ")
+    STUFF((
+        SELECT DISTINCT ' | ' + Bandeira
+        FROM [dbo].[PaidTitles]
+        WHERE NumeroTitulo = pt.NumeroTitulo
+          AND Bandeira IS NOT NULL
+        FOR XML PATH(''), TYPE).value('.', 'NVARCHAR(MAX)'), 1, 3, '') AS Bandeira,
+
+    -- Tipo de pagamento
+    MAX(pt.PaymentType) AS TipoPagamentoCartao,
 
     -- Parcelas (DADOS BRUTOS - sem cálculo de inadimplência)
     MAX(pt.QuantidadeParcelasVenda) AS QuantidadeParcelasVenda,
@@ -130,53 +126,48 @@ SELECT
 
     -- Período
     CASE
-        WHEN pp.DataPrimeiraVenda >= @Periodo3Meses THEN '0-3 meses'
-        WHEN pp.DataPrimeiraVenda >= @Periodo6Meses THEN '3-6 meses'
-        WHEN pp.DataPrimeiraVenda >= @Periodo1Ano THEN '6-12 meses'
+        WHEN MIN(pt.DataVenda) >= @Periodo3Meses THEN '0-3 meses'
+        WHEN MIN(pt.DataVenda) >= @Periodo6Meses THEN '3-6 meses'
+        WHEN MIN(pt.DataVenda) >= @Periodo1Ano THEN '6-12 meses'
         ELSE 'Mais de 1 ano'
     END AS PeriodoTitulo,
 
     -- Dias desde venda
-    DATEDIFF(DAY, pp.DataPrimeiraVenda, GETDATE()) AS DiasDesdeVenda,
+    DATEDIFF(DAY, MIN(pt.DataVenda), GETDATE()) AS DiasDesdeVenda,
 
     -- Lista de parcelas pagas (para referência)
     STRING_AGG(
         CASE WHEN COALESCE(pt.ValorPago, pt.Total) IS NOT NULL
         THEN CAST(pt.NumeroParcelaVenda AS VARCHAR(5)) END,
         ','
-    ) WITHIN GROUP (ORDER BY pt.NumeroParcelaVenda) AS ListaParcelasPagas,
+    ) AS ListaParcelasPagas,
 
     -- Lista de valores pagos
     STRING_AGG(
         CASE WHEN COALESCE(pt.ValorPago, pt.Total) IS NOT NULL
         THEN CAST(COALESCE(pt.ValorPago, pt.Total) AS VARCHAR(20)) END,
         ','
-    ) WITHIN GROUP (ORDER BY pt.NumeroParcelaVenda) AS ListaValoresPagos
+    ) AS ListaValoresPagos
 
 FROM [dbo].[PaidTitles] pt
-INNER JOIN UltimoProduto up ON pt.NumeroTitulo = up.NumeroTitulo AND up.rn = 1
-INNER JOIN PrimeiroProduto pp ON pt.NumeroTitulo = pp.NumeroTitulo AND pp.rn = 1
-LEFT JOIN TodosCartoes tc ON pt.NumeroTitulo = tc.NumeroTitulo
 WHERE pt.[DataCadastro] BETWEEN @DataInicio AND @DataFim
-  AND up.StatusTitulo IN ('Ativo', 'Bloqueado', 'Cancelado', 'Vencido')
-  -- FILTRO IMPORTANTE: Apenas produtos que são COTAS (contém "Sócio")
-  AND up.NomeProduto LIKE '%Sócio%'
-  -- Filtro por prefixo do número do título
-  AND (pt.[NumeroTitulo] LIKE '%SBF%' OR pt.[NumeroTitulo] LIKE '%SFA%' OR pt.[NumeroTitulo] LIKE '%SAF%')
+  -- FILTRO: Apenas produtos que são COTAS (usando última venda)
+  AND EXISTS (
+      SELECT 1 FROM [dbo].[PaidTitles] pt2
+      WHERE pt2.NumeroTitulo = pt.NumeroTitulo
+        AND pt2.NomeProduto LIKE '%Sócio%'
+  )
+  -- FILTRO: Status válidos (usando última venda)
+  AND (SELECT TOP 1 StatusTitulo
+       FROM [dbo].[PaidTitles]
+       WHERE NumeroTitulo = pt.NumeroTitulo
+       ORDER BY DataVenda DESC) IN ('Ativo', 'Bloqueado', 'Cancelado', 'Vencido')
 
 GROUP BY
-    pt.NumeroTitulo,
-    pp.NomeProdutoOriginal,
-    up.NomeProduto,
-    up.Categoria,
-    up.StatusTitulo,
-    pp.DataPrimeiraVenda,
-    tc.TodosNumeroCartao,
-    tc.TodasBandeiras,
-    tc.TipoPagamentoCartao
+    pt.NumeroTitulo
 
 ORDER BY
-    pp.DataPrimeiraVenda DESC,
+    MIN(pt.DataVenda) DESC,
     pt.NumeroTitulo;
 
 GO
