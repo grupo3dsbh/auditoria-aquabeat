@@ -48,14 +48,21 @@ TodosCartoes AS (
     SELECT
         NumeroTitulo,
         -- Concatenar TODOS os cartões únicos com " | "
-        STRING_AGG(DISTINCT NumeroCartao, ' | ') WITHIN GROUP (ORDER BY DataVenda ASC) AS TodosNumeroCartao,
+        STRING_AGG(NumeroCartao, ' | ') WITHIN GROUP (ORDER BY NumeroCartao) AS TodosNumeroCartao,
         -- Concatenar TODAS as bandeiras únicas com " | "
-        STRING_AGG(DISTINCT Bandeira, ' | ') WITHIN GROUP (ORDER BY DataVenda ASC) AS TodasBandeiras,
+        STRING_AGG(Bandeira, ' | ') WITHIN GROUP (ORDER BY Bandeira) AS TodasBandeiras,
         -- Tipo de pagamento (pegar o mais recente)
         MAX(PaymentType) AS TipoPagamentoCartao
-    FROM [dbo].[PaidTitles]
-    WHERE NumeroCartao IS NOT NULL
-      AND [DataCadastro] BETWEEN @DataInicio AND @DataFim
+    FROM (
+        SELECT DISTINCT
+            NumeroTitulo,
+            NumeroCartao,
+            Bandeira,
+            PaymentType
+        FROM [dbo].[PaidTitles]
+        WHERE NumeroCartao IS NOT NULL
+          AND [DataCadastro] BETWEEN @DataInicio AND @DataFim
+    ) AS CartoesUnicos
     GROUP BY NumeroTitulo
 )
 -- SELECT principal
