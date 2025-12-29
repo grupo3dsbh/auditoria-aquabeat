@@ -56,6 +56,11 @@ $tokens = $db->fetchAll("
     WHERE usuario_id = ?
     ORDER BY criado_em DESC
 ", [$userId]);
+
+// Detectar esquema HTTP/HTTPS de forma segura
+$scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ||
+          (!empty($_SERVER['SERVER_PORT']) && $_SERVER['SERVER_PORT'] == 443) ? 'https' : 'http';
+$baseUrl = $scheme . '://' . $_SERVER['HTTP_HOST'] . dirname($_SERVER['SCRIPT_NAME'], 2);
 ?>
 <!DOCTYPE html>
 <html lang="pt-BR">
@@ -242,7 +247,7 @@ $tokens = $db->fetchAll("
             </div>
             <div class="card-body">
                 <h6>Endpoint: Gerar PDF com Análise IA</h6>
-                <pre class="bg-light p-3 rounded"><code>POST <?php echo $_SERVER['REQUEST_SCHEME'] . '://' . $_SERVER['HTTP_HOST'] . dirname($_SERVER['SCRIPT_NAME'], 2); ?>/api/gerar_pdf_relatorio.php</code></pre>
+                <pre class="bg-light p-3 rounded"><code>POST <?php echo $baseUrl; ?>/api/gerar_pdf_relatorio.php</code></pre>
 
                 <h6 class="mt-3">Headers:</h6>
                 <pre class="bg-light p-3 rounded"><code>Authorization: Bearer SEU_TOKEN_AQUI
