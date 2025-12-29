@@ -14,6 +14,7 @@ $queriesDir = APP_ROOT . '/database';
 
 // Lista de queries disponíveis
 $availableQueries = [
+    'query_dados_venda_COMPLETA.sql' => '✅ Query COMPLETA - Com Histórico de Todos os Cartões (USAR ESTA!)',
     'query_dados_venda.sql' => 'Query de Exportação de Dados (Sem Status)',
     'query_com_cabecalho_CORRIGIDA.sql' => 'Query com Cabeçalho (Antiga - Com Status)',
     'query_com_cabecalho.sql' => 'Query Original com Cabeçalho',
