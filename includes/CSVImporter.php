@@ -609,6 +609,40 @@ class CSVImporter {
             $data[$field] = $value !== '' ? $value : null;
         }
 
+        // Truncar campos de texto que excedem o limite do banco
+        $maxLengths = [
+            'numero_titulo' => 100,
+            'nome_produto_original' => 255,
+            'nome_produto_atual' => 255,
+            'categoria' => 255,
+            'status_titulo' => 50,
+            'status_inadimplencia' => 100,
+            'periodo_titulo' => 50,
+            'nome_titular' => 255,
+            'documento_titular' => 50,
+            'telefone_residencial' => 50,
+            'origem_venda' => 150,
+            'promotor' => 255,
+            'gerente' => 255,
+            'forma_pagamento' => 150,
+            'tipo_pagamento' => 100,
+            'numero_cartao' => 150,
+            'bandeira' => 100,
+            'tipo_pagamento_cartao' => 50,
+            'nivel_risco_cartao' => 50,
+            'nivel_risco_consultor' => 50
+        ];
+
+        foreach ($maxLengths as $field => $maxLength) {
+            if (isset($data[$field]) && is_string($data[$field]) && strlen($data[$field]) > $maxLength) {
+                Logger::warning("Truncating field '$field' from " . strlen($data[$field]) . " to $maxLength chars", [
+                    'original_value' => substr($data[$field], 0, 50) . '...',
+                    'importacao_id' => $this->importacaoId
+                ]);
+                $data[$field] = substr($data[$field], 0, $maxLength);
+            }
+        }
+
         return $data;
     }
 
