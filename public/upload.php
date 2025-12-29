@@ -37,6 +37,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['csv_file'])) {
     }
 }
 
+// Cancelar importação
+if (isset($_GET['cancelar']) && isset($_GET['id'])) {
+    try {
+        $db = Database::getInstance();
+        $importId = (int)$_GET['id'];
+
+        $db->update('importacoes', [
+            'status' => 'cancelado',
+            'mensagem_erro' => 'Cancelado pelo usuário'
+        ], 'id = ?', [$importId]);
+
+        setFlashMessage('success', 'Importação cancelada com sucesso!');
+        redirect('upload.php');
+    } catch (Exception $e) {
+        $error = 'Erro ao cancelar importação: ' . $e->getMessage();
+    }
+}
+
 $error = $error ?? getFlashMessage('error');
 $success = getFlashMessage('success');
 ?>
@@ -129,19 +147,46 @@ $success = getFlashMessage('success');
                                         <th>Arquivo</th>
                                         <th>Status</th>
                                         <th>Registros</th>
+                                        <th>Ações</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     <?php foreach ($importacoes as $imp): ?>
                                         <tr>
                                             <td><?php echo formatDateTime($imp['criado_em']); ?></td>
-                                            <td><?php echo sanitize($imp['nome_arquivo']); ?></td>
+                                            <td>
+                                                <?php echo sanitize($imp['nome_arquivo']); ?>
+                                                <?php if ($imp['mensagem_erro']): ?>
+                                                    <br><small class="text-danger">
+                                                        <i class="bi bi-exclamation-triangle"></i>
+                                                        <?php echo sanitize($imp['mensagem_erro']); ?>
+                                                    </small>
+                                                <?php endif; ?>
+                                            </td>
                                             <td>
                                                 <span class="badge bg-<?php echo getStatusBadgeClass(ucfirst($imp['status'])); ?>">
                                                     <?php echo ucfirst($imp['status']); ?>
                                                 </span>
                                             </td>
                                             <td><?php echo number_format($imp['linhas_processadas'], 0, ',', '.'); ?></td>
+                                            <td>
+                                                <?php if ($imp['status'] === 'processando'): ?>
+                                                    <button class="btn btn-sm btn-primary"
+                                                            onclick="retomarImportacao(<?php echo $imp['id']; ?>, '<?php echo sanitize($imp['nome_arquivo']); ?>')">
+                                                        <i class="bi bi-play-circle"></i> Retomar
+                                                    </button>
+                                                    <a href="?cancelar=1&id=<?php echo $imp['id']; ?>"
+                                                       class="btn btn-sm btn-danger"
+                                                       onclick="return confirm('Tem certeza que deseja cancelar esta importação?')">
+                                                        <i class="bi bi-x-circle"></i> Cancelar
+                                                    </a>
+                                                <?php elseif ($imp['status'] === 'erro'): ?>
+                                                    <a href="?cancelar=1&id=<?php echo $imp['id']; ?>"
+                                                       class="btn btn-sm btn-secondary">
+                                                        <i class="bi bi-trash"></i> Limpar
+                                                    </a>
+                                                <?php endif; ?>
+                                            </td>
                                         </tr>
                                     <?php endforeach; ?>
                                 </tbody>
@@ -153,6 +198,156 @@ $success = getFlashMessage('success');
         </div>
     </div>
 
+    <!-- Modal de Progresso -->
+    <div class="modal fade" id="progressModal" data-bs-backdrop="static" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Retomando Importação</h5>
+                </div>
+                <div class="modal-body">
+                    <div id="modalErrorAlert" class="alert alert-danger d-none"></div>
+                    <p><strong id="modalFileName"></strong></p>
+                    <div class="progress" style="height: 30px;">
+                        <div id="modalProgressBar" class="progress-bar progress-bar-striped progress-bar-animated"
+                             role="progressbar" style="width: 0%">
+                            0%
+                        </div>
+                    </div>
+                    <p class="mt-3 text-center">
+                        <strong id="modalProgressText">Carregando...</strong><br>
+                        <small class="text-muted" id="modalProgressDetails"></small>
+                    </p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" id="modalCancelBtn" data-bs-dismiss="modal">Fechar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        let progressModal;
+        let currentImportId;
+        let offset = 0;
+        let totalProcessed = 0;
+        let totalErrors = 0;
+        const chunkSize = 200;
+
+        async function retomarImportacao(importId, fileName) {
+            currentImportId = importId;
+
+            // Mostrar modal
+            progressModal = new bootstrap.Modal(document.getElementById('progressModal'));
+            progressModal.show();
+
+            document.getElementById('modalFileName').textContent = fileName;
+            document.getElementById('modalErrorAlert').classList.add('d-none');
+            document.getElementById('modalCancelBtn').style.display = 'none';
+
+            // Buscar dados da importação
+            try {
+                const response = await fetch(`get_import_info.php?id=${importId}`);
+                const importData = await response.json();
+
+                if (!importData.success) {
+                    throw new Error(importData.error || 'Erro ao carregar dados da importação');
+                }
+
+                // Usar mapeamento salvo e offset atual
+                const mapeamento = JSON.parse(importData.mapeamento_colunas || '{}');
+                offset = importData.linhas_processadas || 0;
+                totalProcessed = offset;
+                totalErrors = importData.linhas_erro || 0;
+
+                document.getElementById('modalProgressText').textContent =
+                    `Retomando do registro ${offset}...`;
+
+                // Iniciar processamento
+                await processNextChunk(mapeamento, importData.total_rows || 10000);
+
+            } catch (error) {
+                console.error('Erro:', error);
+                showModalError(error.message);
+            }
+        }
+
+        async function processNextChunk(mapeamento, totalLinhas) {
+            try {
+                const response = await fetch('process_chunk.php', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        importacao_id: currentImportId,
+                        mapeamento: mapeamento,
+                        offset: offset,
+                        chunk_size: chunkSize
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error('Erro na requisição: ' + response.status);
+                }
+
+                const result = await response.json();
+
+                if (!result.success) {
+                    let errorMsg = result.error || 'Erro desconhecido';
+                    if (result.details) {
+                        errorMsg += ` (${result.details.file}:${result.details.line})`;
+                    }
+                    throw new Error(errorMsg);
+                }
+
+                // Atualizar contadores
+                totalProcessed = result.total_processed;
+                totalErrors = result.total_errors;
+                offset = result.next_offset;
+
+                // Calcular progresso
+                const progress = Math.min(100, Math.round((totalProcessed + totalErrors) / totalLinhas * 100));
+
+                // Atualizar barra
+                const progressBar = document.getElementById('modalProgressBar');
+                progressBar.style.width = progress + '%';
+                progressBar.textContent = progress + '%';
+
+                document.getElementById('modalProgressText').textContent =
+                    `Processando... ${totalProcessed + totalErrors} de ${totalLinhas} linhas`;
+                document.getElementById('modalProgressDetails').textContent =
+                    `✓ ${totalProcessed} processadas | ✗ ${totalErrors} com erro`;
+
+                // Se não completou, processar próximo chunk
+                if (result.has_more) {
+                    await processNextChunk(mapeamento, totalLinhas);
+                } else {
+                    // Completou!
+                    document.getElementById('modalProgressText').innerHTML =
+                        '<i class="bi bi-check-circle text-success"></i> Importação Concluída!';
+                    progressBar.classList.remove('progress-bar-animated');
+                    progressBar.classList.add('bg-success');
+
+                    // Recarregar página após 2 segundos
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 2000);
+                }
+
+            } catch (error) {
+                console.error('Erro completo:', error);
+                showModalError(error.message);
+            }
+        }
+
+        function showModalError(message) {
+            const errorAlert = document.getElementById('modalErrorAlert');
+            errorAlert.textContent = 'Erro: ' + message;
+            errorAlert.classList.remove('d-none');
+            document.getElementById('modalCancelBtn').style.display = '';
+        }
+    </script>
 </body>
 </html>
