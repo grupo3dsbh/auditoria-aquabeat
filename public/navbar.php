@@ -47,6 +47,7 @@
                         <li><a class="dropdown-item" href="<?php echo url('admin/corrigir_dados_importacao.php'); ?>"><i class="bi bi-wrench"></i> Corrigir Dados</a></li>
                         <li><a class="dropdown-item" href="<?php echo url('admin/executar_migration_fix_cartoes.php'); ?>"><i class="bi bi-tools"></i> Corrigir Estrutura Cartões</a></li>
                         <li><a class="dropdown-item" href="<?php echo url('admin/recalcular_parcelas_pagas.php'); ?>"><i class="bi bi-123"></i> Recalcular Parcelas Pagas</a></li>
+                        <li><a class="dropdown-item" href="<?php echo url('admin/recalcular_total_pago.php'); ?>"><i class="bi bi-cash-coin"></i> Recalcular Total Pago</a></li>
                         <li><a class="dropdown-item" href="<?php echo url('admin/recalcular_inadimplencia.php'); ?>"><i class="bi bi-calculator"></i> Recalcular Inadimplência</a></li>
                         <li><a class="dropdown-item" href="<?php echo url('admin/gerenciar_titulos_prefixo.php'); ?>"><i class="bi bi-filter-circle"></i> Gerenciar Prefixos (SFA/SBF)</a></li>
                         <li><hr class="dropdown-divider"></li>
