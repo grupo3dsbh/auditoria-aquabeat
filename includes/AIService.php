@@ -327,12 +327,18 @@ class AIService {
      * Construir prompt para análise
      */
     private function buildAnalysisPrompt($data, $type) {
-        $prompt = "Você é um auditor financeiro especializado em análise de inadimplência e detecção de fraudes.\n\n";
+        $prompt = "Você é um profissional EXPERT em gestão de parques aquáticos com QI de 180 e mais de 15 anos de experiência no setor.\n\n";
+        $prompt .= "CONTEXTO IMPORTANTE:\n";
+        $prompt .= "- Parques aquáticos têm características únicas de inadimplência\n";
+        $prompt .= "- Taxa de inadimplência até 35% é considerada NORMAL no setor\n";
+        $prompt .= "- Produtos são vendidos em até 48 parcelas (pagamento de longo prazo)\n";
+        $prompt .= "- Não considere taxas abaixo de 35% como 'altas' ou 'preocupantes'\n";
+        $prompt .= "- Apenas taxas ACIMA de 35% merecem atenção especial\n\n";
 
         switch ($type) {
             case 'consultores':
                 $prompt .= "Analise os seguintes dados de consultores e identifique:\n";
-                $prompt .= "1. Consultores com taxas de inadimplência preocupantes\n";
+                $prompt .= "1. Consultores com taxas de inadimplência acima de 35% (preocupante para o setor)\n";
                 $prompt .= "2. Padrões suspeitos de vendas\n";
                 $prompt .= "3. Comparação de desempenho entre consultores\n";
                 $prompt .= "4. Recomendações de ações\n\n";
@@ -342,29 +348,31 @@ class AIService {
                 $prompt .= "Analise os seguintes dados de cartões e identifique:\n";
                 $prompt .= "1. Cartões com múltiplos documentos (possível fraude)\n";
                 $prompt .= "2. Padrões de uso suspeito\n";
-                $prompt .= "3. Taxas de inadimplência por cartão\n";
+                $prompt .= "3. Taxas de inadimplência por cartão (considerando que até 35% é normal)\n";
                 $prompt .= "4. Recomendações de bloqueio ou investigação\n\n";
                 break;
 
             case 'temporal':
                 $prompt .= "Analise a evolução temporal da inadimplência:\n";
                 $prompt .= "1. Tendências ao longo do tempo (3 meses, 6 meses, 1 ano)\n";
-                $prompt .= "2. Sazonalidade e padrões\n";
-                $prompt .= "3. Projeções e previsões\n";
+                $prompt .= "2. Sazonalidade e padrões específicos de parques aquáticos\n";
+                $prompt .= "3. Projeções e previsões baseadas na sazonalidade do setor\n";
                 $prompt .= "4. Recomendações preventivas\n\n";
                 break;
 
             default:
                 $prompt .= "Faça uma análise geral dos dados de inadimplência:\n";
                 $prompt .= "1. Resumo executivo dos principais indicadores\n";
-                $prompt .= "2. Pontos críticos de atenção\n";
+                $prompt .= "2. Pontos críticos de atenção (considerando benchmark de 35%)\n";
                 $prompt .= "3. Riscos identificados\n";
                 $prompt .= "4. Recomendações prioritárias\n\n";
         }
 
         $prompt .= "Dados:\n";
         $prompt .= json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
-        $prompt .= "\n\nForneça uma análise clara, objetiva e em português do Brasil. Use formatação markdown.";
+        $prompt .= "\n\nForneça uma análise clara, objetiva e em português do Brasil.\n";
+        $prompt .= "IMPORTANTE: Use formatação HTML para negrito (<strong>texto</strong>) ao invés de markdown (**texto**).\n";
+        $prompt .= "A resposta será exibida em uma página HTML, então use tags HTML apropriadas.";
 
         return $prompt;
     }
