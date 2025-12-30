@@ -239,7 +239,9 @@ echo json_encode([
  * Gerar HTML formatado para impressão/PDF
  */
 function gerarHTMLRelatorio($titulos, $dados) {
-    $baseUrl = $_SERVER['REQUEST_SCHEME'] . '://' . $_SERVER['HTTP_HOST'];
+    $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ||
+              (!empty($_SERVER['SERVER_PORT']) && $_SERVER['SERVER_PORT'] == 443) ? 'https' : 'http';
+    $baseUrl = $scheme . '://' . $_SERVER['HTTP_HOST'];
     $data = date('d/m/Y H:i');
 
     // Limitar a 50 primeiros títulos para preview
