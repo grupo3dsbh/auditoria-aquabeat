@@ -77,7 +77,7 @@ try {
 
         // Buscar títulos com dados de cartão
         $titulosComCartao = $db->fetchAll(
-            "SELECT id, numero_cartao, bandeira, tipo_pagamento_cartao
+            "SELECT id, numero_cartao, bandeira, tipo_pagamento_cartao, data_primeira_venda
              FROM titulos
              WHERE importacao_id = ?
                AND numero_cartao IS NOT NULL
@@ -109,6 +109,7 @@ try {
                         'numero_cartao' => $cartao,
                         'bandeira' => $bandeira,
                         'tipo_pagamento' => $titulo['tipo_pagamento_cartao'],
+                        'data_primeiro_uso' => $titulo['data_primeira_venda'],
                         'ordem_uso' => $ordem++
                     ]);
                     $cartoesInseridos++;
@@ -233,7 +234,14 @@ try {
     echo "</div>";
 
 } catch (Exception $e) {
-    $db->rollback();
+    // Só fazer rollback se houver transação ativa
+    try {
+        if ($db->getConnection()->inTransaction()) {
+            $db->rollback();
+        }
+    } catch (Exception $rollbackError) {
+        // Ignorar erro de rollback
+    }
 
     echo "<div class='error'>";
     echo "<h2>❌ Erro na Correção</h2>";

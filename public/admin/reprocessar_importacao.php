@@ -180,8 +180,8 @@ try {
 
             if (!$numeroTitulo) continue;
 
-            // Buscar título no banco
-            $titulo = $db->fetchOne("SELECT id FROM titulos WHERE numero_titulo = ? AND importacao_id = ?", [$numeroTitulo, $importacaoId]);
+            // Buscar título no banco com dados completos
+            $titulo = $db->fetchOne("SELECT id, tipo_pagamento_cartao, data_primeira_venda FROM titulos WHERE numero_titulo = ? AND importacao_id = ?", [$numeroTitulo, $importacaoId]);
 
             if ($titulo && $numeroCartao) {
                 // Inserir cartões
@@ -198,7 +198,8 @@ try {
                         'titulo_id' => $titulo['id'],
                         'numero_cartao' => $cartao,
                         'bandeira' => $bandeiraCartao,
-                        'tipo_pagamento' => $tipoPagamentoCartao,
+                        'tipo_pagamento' => $titulo['tipo_pagamento_cartao'], // Pegar do banco
+                        'data_primeiro_uso' => $titulo['data_primeira_venda'], // Pegar do banco
                         'ordem_uso' => $ordem++
                     ]);
 
@@ -340,7 +341,14 @@ try {
     Logger::logAction(Auth::userId(), 'reprocess_import', 'Reprocessou importação', 'importacoes', $importacaoId);
 
 } catch (Exception $e) {
-    $db->rollback();
+    // Só fazer rollback se houver transação ativa
+    try {
+        if ($db->getConnection()->inTransaction()) {
+            $db->rollback();
+        }
+    } catch (Exception $rollbackError) {
+        // Ignorar erro de rollback
+    }
 
     echo "<div class='error'>";
     echo "<h2>❌ Erro ao Reprocessar</h2>";
