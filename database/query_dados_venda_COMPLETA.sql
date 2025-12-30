@@ -151,13 +151,23 @@ SELECT
 
 FROM [dbo].[PaidTitles] pt
 WHERE pt.[DataCadastro] BETWEEN @DataInicio AND @DataFim
-  -- FILTRO: Apenas produtos que são COTAS (usando última venda)
-  AND EXISTS (
-      SELECT 1 FROM [dbo].[PaidTitles] pt2
-      WHERE pt2.NumeroTitulo = pt.NumeroTitulo
-        AND pt2.NomeProduto LIKE '%Sócio%'
+  -- FILTRO 1: Apenas prefixos SFA, SAF, SBF
+  AND (
+      pt.[NumeroTitulo] LIKE 'SFA-%'
+      OR pt.[NumeroTitulo] LIKE 'SAF-%'
+      OR pt.[NumeroTitulo] LIKE 'SBF-%'
   )
-  -- FILTRO: Status válidos (usando última venda)
+  -- FILTRO 2: Produto ORIGINAL deve conter "Sócio"
+  AND (SELECT TOP 1 NomeProduto
+       FROM [dbo].[PaidTitles]
+       WHERE NumeroTitulo = pt.NumeroTitulo
+       ORDER BY DataVenda ASC) LIKE '%Sócio%'
+  -- FILTRO 3: Produto ATUAL deve conter "Sócio"
+  AND (SELECT TOP 1 NomeProduto
+       FROM [dbo].[PaidTitles]
+       WHERE NumeroTitulo = pt.NumeroTitulo
+       ORDER BY DataVenda DESC) LIKE '%Sócio%'
+  -- FILTRO 4: Status válidos (usando última venda)
   AND (SELECT TOP 1 StatusTitulo
        FROM [dbo].[PaidTitles]
        WHERE NumeroTitulo = pt.NumeroTitulo
