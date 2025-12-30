@@ -657,6 +657,36 @@ class CSVImporter {
             }
         }
 
+        // RECALCULAR qtd_parcelas_pagas removendo consumos e pulseiras
+        if (isset($data['lista_parcelas_pagas']) && !empty($data['lista_parcelas_pagas'])) {
+            $parcelas = array_map('trim', explode('|', $data['lista_parcelas_pagas']));
+            $parcelasValidas = 0;
+
+            foreach ($parcelas as $parcela) {
+                $parcela = strtolower($parcela);
+
+                // Ignorar consumo crédito
+                if (stripos($parcela, 'consumo') !== false && stripos($parcela, 'credito') !== false) {
+                    continue;
+                }
+
+                // Ignorar pulseira troca
+                if (stripos($parcela, 'pulseira') !== false && stripos($parcela, 'troca') !== false) {
+                    continue;
+                }
+
+                // Ignorar vazios
+                if (empty($parcela) || $parcela === 'null') {
+                    continue;
+                }
+
+                $parcelasValidas++;
+            }
+
+            // Atualizar com o valor correto
+            $data['qtd_parcelas_pagas'] = $parcelasValidas;
+        }
+
         return $data;
     }
 
