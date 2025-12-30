@@ -2536,22 +2536,16 @@ endif;
                 });
         }
 
-        // Função para gerar PDF com análise IA
-        async function gerarPDFComIA() {
+        // Função para gerar PDF com análise IA - Abre modal de escolha
+        function gerarPDFComIA() {
+            const modal = new bootstrap.Modal(document.getElementById('modalEscolhaPlanilha'));
+            modal.show();
+        }
+
+        // Função que executa a geração do PDF com o tipo escolhido
+        async function gerarPDFComIATipo(tipoPlanilha) {
             const btn = document.getElementById('btnGerarPDF');
             const originalHTML = btn.innerHTML;
-
-            // Perguntar ao usuário qual tipo de planilha deseja
-            const escolha = confirm(
-                '📊 Escolha o tipo de planilha:\n\n' +
-                '✅ OK = Planilha de AUDITORIA (todos os títulos que requerem atenção)\n' +
-                '   • Inadimplentes\n' +
-                '   • Pagamentos em Débito/PIX\n' +
-                '   • Sem cartão cadastrado\n\n' +
-                '❌ CANCELAR = Planilha PADRÃO (primeiros 50 títulos apenas)'
-            );
-
-            const tipoPlanilha = escolha ? 'auditoria' : 'padrao';
 
             // Verificar se há token do usuário disponível
             const tokenUsuario = <?php echo $tokenUsuario ? "'" . $tokenUsuario['token'] . "'" : 'null'; ?>;
@@ -2625,6 +2619,67 @@ endif;
                 btn.disabled = false;
             }
         }
+
+        // Função auxiliar para selecionar tipo de planilha
+        function selecionarTipoPlanilha(tipo) {
+            // Fechar modal
+            const modal = bootstrap.Modal.getInstance(document.getElementById('modalEscolhaPlanilha'));
+            modal.hide();
+
+            // Executar geração do PDF
+            gerarPDFComIATipo(tipo);
+        }
     </script>
+
+    <!-- Modal de Escolha de Tipo de Planilha -->
+    <div class="modal fade" id="modalEscolhaPlanilha" tabindex="-1" aria-labelledby="modalEscolhaPlanilhaLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title" id="modalEscolhaPlanilhaLabel">
+                        <i class="bi bi-file-earmark-pdf"></i> Escolha o tipo de planilha
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="mb-3">Selecione qual tipo de relatório deseja gerar:</p>
+
+                    <div class="d-grid gap-3">
+                        <!-- Opção: Planilha de Auditoria -->
+                        <div class="card border-warning" style="cursor: pointer;" onclick="selecionarTipoPlanilha('auditoria')">
+                            <div class="card-body">
+                                <h6 class="card-title text-warning mb-2">
+                                    <i class="bi bi-search"></i> Planilha de AUDITORIA
+                                </h6>
+                                <p class="card-text mb-2">
+                                    <small>Mostra <strong>todos</strong> os títulos que requerem atenção:</small>
+                                </p>
+                                <ul class="mb-0 small">
+                                    <li>Inadimplentes</li>
+                                    <li>Pagamentos em Débito/PIX</li>
+                                    <li>Sem cartão cadastrado</li>
+                                </ul>
+                            </div>
+                        </div>
+
+                        <!-- Opção: Planilha Padrão -->
+                        <div class="card border-secondary" style="cursor: pointer;" onclick="selecionarTipoPlanilha('padrao')">
+                            <div class="card-body">
+                                <h6 class="card-title text-secondary mb-2">
+                                    <i class="bi bi-file-text"></i> Planilha PADRÃO
+                                </h6>
+                                <p class="card-text mb-0">
+                                    <small>Mostra apenas os <strong>primeiros 50 títulos</strong></small>
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                </div>
+            </div>
+        </div>
+    </div>
 </body>
 </html>

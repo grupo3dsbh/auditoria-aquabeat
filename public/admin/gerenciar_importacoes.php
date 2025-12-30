@@ -271,12 +271,18 @@ $success = $success ?? getFlashMessage('success');
                                                     </span>
                                                 </td>
                                                 <td class="text-end">
-                                                    <form method="POST" class="d-inline" onsubmit="return confirm('Tem certeza que deseja deletar esta importação?\n\nImportação: #<?php echo $imp['id']; ?>\nArquivo: <?php echo addslashes($imp['nome_arquivo']); ?>\nTítulos: <?php echo number_format($imp['total_titulos'], 0, ',', '.'); ?>\n\nEsta ação NÃO PODE SER DESFEITA!');">
-                                                        <input type="hidden" name="importacao_id" value="<?php echo $imp['id']; ?>">
-                                                        <button type="submit" name="deletar" class="btn btn-sm btn-danger">
+                                                    <div class="btn-group btn-group-sm">
+                                                        <a href="reprocessar_importacao.php?importacao_id=<?php echo $imp['id']; ?>"
+                                                           class="btn btn-warning"
+                                                           title="Reprocessar importação (atualizar cartões e análises)">
+                                                            <i class="bi bi-arrow-repeat"></i> Reprocessar
+                                                        </a>
+                                                        <button type="button"
+                                                                class="btn btn-danger"
+                                                                onclick="if(confirm('Tem certeza que deseja deletar esta importação?\n\nImportação: #<?php echo $imp['id']; ?>\nArquivo: <?php echo addslashes($imp['nome_arquivo']); ?>\nTítulos: <?php echo number_format($imp['total_titulos'] ?? 0, 0, ',', '.'); ?>\n\nEsta ação NÃO PODE SER DESFEITA!')) { deletarImportacao(<?php echo $imp['id']; ?>); }">
                                                             <i class="bi bi-trash"></i> Deletar
                                                         </button>
-                                                    </form>
+                                                    </div>
                                                 </td>
                                             </tr>
                                         <?php endforeach; ?>
@@ -291,5 +297,14 @@ $success = $success ?? getFlashMessage('success');
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        function deletarImportacao(id) {
+            const form = document.createElement('form');
+            form.method = 'POST';
+            form.innerHTML = `<input type="hidden" name="importacao_id" value="${id}"><input type="hidden" name="deletar" value="1">`;
+            document.body.appendChild(form);
+            form.submit();
+        }
+    </script>
 </body>
 </html>

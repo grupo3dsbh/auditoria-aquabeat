@@ -3,6 +3,9 @@
  * Bootstrap - Inicialização do Sistema
  */
 
+// Configurar timezone para São Paulo (Brasil)
+date_default_timezone_set('America/Sao_Paulo');
+
 // Prevenir acesso direto
 if (!defined('APP_ROOT')) {
     define('APP_ROOT', dirname(__DIR__));

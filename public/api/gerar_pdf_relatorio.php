@@ -137,15 +137,37 @@ if ($statusInadimplencia) {
 }
 
 // Buscar todos os títulos com cartões
-$sql = "SELECT t.*,
-        GROUP_CONCAT(tc.numero_cartao ORDER BY tc.ordem_uso SEPARATOR ' | ') as cartoes_lista,
-        GROUP_CONCAT(tc.bandeira ORDER BY tc.ordem_uso SEPARATOR ' | ') as bandeiras_lista,
-        MAX(tc.tipo_pagamento) as tipo_cartao
-        FROM titulos t
-        LEFT JOIN titulo_cartoes tc ON t.id = tc.titulo_id
-        WHERE " . implode(' AND ', $where) . "
-        GROUP BY t.id
-        ORDER BY t.data_primeira_venda DESC";
+// Verificar se a tabela titulo_cartoes existe
+$tabelaCartoesExiste = false;
+try {
+    $db->query("SELECT 1 FROM titulo_cartoes LIMIT 1");
+    $tabelaCartoesExiste = true;
+} catch (Exception $e) {
+    // Tabela não existe, ignorar
+}
+
+if ($tabelaCartoesExiste) {
+    // Query com JOIN na tabela titulo_cartoes
+    $sql = "SELECT t.*,
+            GROUP_CONCAT(tc.numero_cartao ORDER BY tc.ordem_uso SEPARATOR ' | ') as cartoes_lista,
+            GROUP_CONCAT(tc.bandeira ORDER BY tc.ordem_uso SEPARATOR ' | ') as bandeiras_lista,
+            MAX(tc.tipo_pagamento) as tipo_cartao
+            FROM titulos t
+            LEFT JOIN titulo_cartoes tc ON t.id = tc.titulo_id
+            WHERE " . implode(' AND ', $where) . "
+            GROUP BY t.id
+            ORDER BY t.data_primeira_venda DESC";
+} else {
+    // Query sem JOIN (tabela titulo_cartoes não existe)
+    $sql = "SELECT t.*,
+            NULL as cartoes_lista,
+            NULL as bandeiras_lista,
+            NULL as tipo_cartao
+            FROM titulos t
+            WHERE " . implode(' AND ', $where) . "
+            ORDER BY t.data_primeira_venda DESC";
+}
+
 $titulos = $db->fetchAll($sql, $params);
 
 // Calcular estatísticas
