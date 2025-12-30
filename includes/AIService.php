@@ -9,6 +9,21 @@ class AIService {
     private $apiKey;
     private $model;
 
+    // Modelos de fallback para cada provedor
+    private const FALLBACK_MODELS = [
+        'groq' => [
+            'llama-3.3-70b-versatile',
+            'llama-3.1-8b-instant',
+            'mixtral-8x7b-32768',
+            'gemma2-9b-it'
+        ],
+        'openai' => [
+            'gpt-4o-mini',
+            'gpt-3.5-turbo',
+            'gpt-4'
+        ]
+    ];
+
     public function __construct() {
         $this->provider = AI_PROVIDER;
         $this->apiKey = AI_API_KEY;
@@ -65,12 +80,15 @@ class AIService {
         }
 
         $startTime = microtime(true);
+        $lastError = null;
+        $modelToUse = $this->model;
 
+        // Tentar com o modelo principal primeiro
         try {
             if ($this->provider === 'groq') {
-                $response = $this->callGroq($message, $systemPrompt);
+                $response = $this->callGroq($message, $systemPrompt, $modelToUse);
             } else {
-                $response = $this->callOpenAI($message, $systemPrompt);
+                $response = $this->callOpenAI($message, $systemPrompt, $modelToUse);
             }
 
             $endTime = microtime(true);
@@ -78,7 +96,7 @@ class AIService {
 
             Logger::info("AI request successful", [
                 'provider' => $this->provider,
-                'model' => $this->model,
+                'model' => $modelToUse,
                 'processing_time' => $processingTime,
                 'tokens' => $response['tokens'] ?? 0
             ]);
@@ -88,24 +106,106 @@ class AIService {
                 'content' => $response['content'],
                 'tokens' => $response['tokens'] ?? 0,
                 'processing_time' => $processingTime,
-                'model' => $this->model,
+                'model' => $modelToUse,
                 'provider' => $this->provider
             ];
 
         } catch (Exception $e) {
-            Logger::error("AI request failed: " . $e->getMessage());
+            $lastError = $e->getMessage();
+
+            // Verificar se é um erro de modelo (descontinuado, não encontrado, etc.)
+            if ($this->isModelError($lastError)) {
+                Logger::warning("Model failed, trying fallbacks", [
+                    'model' => $modelToUse,
+                    'error' => $lastError
+                ]);
+
+                // Tentar com modelos de fallback
+                $fallbackModels = self::FALLBACK_MODELS[$this->provider] ?? [];
+
+                foreach ($fallbackModels as $fallbackModel) {
+                    // Pular o modelo que já falhou
+                    if ($fallbackModel === $modelToUse) {
+                        continue;
+                    }
+
+                    try {
+                        if ($this->provider === 'groq') {
+                            $response = $this->callGroq($message, $systemPrompt, $fallbackModel);
+                        } else {
+                            $response = $this->callOpenAI($message, $systemPrompt, $fallbackModel);
+                        }
+
+                        $endTime = microtime(true);
+                        $processingTime = round($endTime - $startTime, 2);
+
+                        Logger::info("AI request successful with fallback model", [
+                            'provider' => $this->provider,
+                            'original_model' => $modelToUse,
+                            'fallback_model' => $fallbackModel,
+                            'processing_time' => $processingTime,
+                            'tokens' => $response['tokens'] ?? 0
+                        ]);
+
+                        return [
+                            'success' => true,
+                            'content' => $response['content'],
+                            'tokens' => $response['tokens'] ?? 0,
+                            'processing_time' => $processingTime,
+                            'model' => $fallbackModel,
+                            'provider' => $this->provider,
+                            'fallback_used' => true
+                        ];
+
+                    } catch (Exception $fallbackError) {
+                        $lastError = $fallbackError->getMessage();
+                        Logger::warning("Fallback model failed", [
+                            'model' => $fallbackModel,
+                            'error' => $lastError
+                        ]);
+                        continue;
+                    }
+                }
+            }
+
+            // Se chegou aqui, todos os modelos falharam
+            Logger::error("AI request failed: " . $lastError);
 
             return [
                 'success' => false,
-                'error' => $e->getMessage()
+                'error' => $lastError
             ];
         }
     }
 
     /**
+     * Verificar se o erro é relacionado ao modelo
+     */
+    private function isModelError($errorMessage) {
+        $modelErrorPatterns = [
+            'decommissioned',
+            'deprecated',
+            'not found',
+            'does not exist',
+            'invalid model',
+            'model not available'
+        ];
+
+        $lowerError = strtolower($errorMessage);
+
+        foreach ($modelErrorPatterns as $pattern) {
+            if (strpos($lowerError, $pattern) !== false) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
      * Chamar API Groq
      */
-    private function callGroq($message, $systemPrompt = null) {
+    private function callGroq($message, $systemPrompt = null, $model = null) {
         $url = 'https://api.groq.com/openai/v1/chat/completions';
 
         $messages = [];
@@ -123,7 +223,7 @@ class AIService {
         ];
 
         $data = [
-            'model' => $this->model,
+            'model' => $model ?? $this->model,
             'messages' => $messages,
             'max_tokens' => AI_MAX_TOKENS,
             'temperature' => AI_TEMPERATURE
@@ -147,7 +247,7 @@ class AIService {
     /**
      * Chamar API OpenAI
      */
-    private function callOpenAI($message, $systemPrompt = null) {
+    private function callOpenAI($message, $systemPrompt = null, $model = null) {
         $url = 'https://api.openai.com/v1/chat/completions';
 
         $messages = [];
@@ -165,7 +265,7 @@ class AIService {
         ];
 
         $data = [
-            'model' => $this->model,
+            'model' => $model ?? $this->model,
             'messages' => $messages,
             'max_tokens' => AI_MAX_TOKENS,
             'temperature' => AI_TEMPERATURE
