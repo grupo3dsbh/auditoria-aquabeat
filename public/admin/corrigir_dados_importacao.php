@@ -58,8 +58,8 @@ try {
               AND valor_parcela IS NOT NULL
               AND quantidade_parcelas_venda IS NOT NULL";
 
-    $db->query($sql, [$importacaoId]);
-    $affected = $db->affectedRows();
+    $stmt = $db->query($sql, [$importacaoId]);
+    $affected = $stmt->rowCount();
     echo "✅ Calculados valores para {$affected} títulos<br>";
     echo "</div>";
 
@@ -167,8 +167,8 @@ try {
               AND promotor IS NOT NULL
             GROUP BY promotor";
 
-    $db->query($sql);
-    $countConsultores = $db->affectedRows();
+    $stmt = $db->query($sql);
+    $countConsultores = $stmt->rowCount();
     echo "✅ {$countConsultores} análises de consultores criadas<br>";
 
     // Análise de Cartões
@@ -215,8 +215,8 @@ try {
                 GROUP BY tc.numero_cartao
                 HAVING COUNT(DISTINCT t.id) >= 2";
 
-        $db->query($sql);
-        $countCartoes = $db->affectedRows();
+        $stmt = $db->query($sql);
+        $countCartoes = $stmt->rowCount();
         echo "✅ {$countCartoes} análises de cartões criadas<br>";
     } catch (Exception $e) {
         echo "⚠️ Erro ao criar análise de cartões: " . $e->getMessage() . "<br>";

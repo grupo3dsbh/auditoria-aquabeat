@@ -264,8 +264,8 @@ try {
               AND promotor IS NOT NULL
             GROUP BY promotor";
 
-    $db->query($sql);
-    $countConsultores = $db->affectedRows();
+    $stmt = $db->query($sql);
+    $countConsultores = $stmt->rowCount();
     echo "✅ Análise de consultores: {$countConsultores} registros criados<br>";
 
     // Análise de Cartões
@@ -311,8 +311,8 @@ try {
             GROUP BY tc.numero_cartao
             HAVING COUNT(DISTINCT t.id) >= 2";
 
-    $db->query($sql);
-    $countCartoes = $db->affectedRows();
+    $stmt = $db->query($sql);
+    $countCartoes = $stmt->rowCount();
     echo "✅ Análise de cartões: {$countCartoes} registros criados<br>";
 
     echo "</div>";
