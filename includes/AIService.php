@@ -371,8 +371,8 @@ class AIService {
         $prompt .= "Dados:\n";
         $prompt .= json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
         $prompt .= "\n\nForneça uma análise clara, objetiva e em português do Brasil.\n";
-        $prompt .= "IMPORTANTE: Use formatação HTML para negrito (<strong>texto</strong>) ao invés de markdown (**texto**).\n";
-        $prompt .= "A resposta será exibida em uma página HTML, então use tags HTML apropriadas.";
+        $prompt .= "IMPORTANTE: Use formatação markdown para negrito (**texto**).\n";
+        $prompt .= "NÃO use tags HTML como <strong>, <h1>, etc. Use APENAS markdown simples.";
 
         return $prompt;
     }

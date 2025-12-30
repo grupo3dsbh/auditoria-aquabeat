@@ -1443,8 +1443,7 @@ if ($viewCartoes):
                 })
                 .then(data => {
                     if (data.success) {
-                        // A IA já retorna HTML, apenas converter quebras de linha
-                        const resumoFormatado = data.resumo.replace(/\n/g, '<br>');
+                        const resumoFormatado = data.resumo.replace(/\n/g, '<br>').replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
                         document.getElementById('iaResumoCartao').innerHTML = '<div class="alert alert-light">' + resumoFormatado + '</div>';
                     } else {
                         alert('Erro ao gerar resumo: ' + (data.error || 'Erro desconhecido'));
@@ -2502,10 +2501,16 @@ endif;
             }
         }
 
-        // Função para formatar resumo da IA (já vem em HTML)
+        // Função para converter markdown básico para HTML
         function formatarResumo(texto) {
-            // A IA agora retorna HTML diretamente, apenas converter quebras de linha
+            // Converter **texto** para <strong>texto</strong>
+            texto = texto.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+
+            // Converter quebras de linha para <br>
             texto = texto.replace(/\n/g, '<br>');
+
+            // Converter emojis de lista (•) em pontos de lista
+            texto = texto.replace(/^• /gm, '&bull; ');
 
             return texto;
         }
