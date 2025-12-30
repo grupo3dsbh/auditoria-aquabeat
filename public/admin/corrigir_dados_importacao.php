@@ -5,10 +5,10 @@
  * - Popula titulo_cartoes a partir de dados em titulos
  */
 
-require_once __DIR__ . '/../../includes/bootstrap.php';
+define('APP_ROOT', dirname(dirname(__DIR__)));
+require_once APP_ROOT . '/includes/bootstrap.php';
 
-Auth::requireLogin();
-Auth::requirePermission('admin');
+requireAdmin();
 
 header('Content-Type: text/html; charset=utf-8');
 

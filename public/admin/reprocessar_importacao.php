@@ -4,11 +4,10 @@
  * Recalcula título_cartoes e análises agregadas
  */
 
-require_once __DIR__ . '/../../includes/bootstrap.php';
+define('APP_ROOT', dirname(dirname(__DIR__)));
+require_once APP_ROOT . '/includes/bootstrap.php';
 
-// Verificar autenticação
-Auth::requireLogin();
-Auth::requirePermission('admin');
+requireAdmin();
 
 header('Content-Type: text/html; charset=utf-8');
 
