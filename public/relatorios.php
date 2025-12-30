@@ -759,43 +759,52 @@ if ($viewCartoes):
             $paramsPesquisa = ['%' . $pesquisa . '%', '%' . $pesquisa . '%', '%' . $pesquisa . '%'];
         }
 
-        // Buscar cartões agrupados APENAS por numero_cartao (ignorar bandeira)
+        // Buscar cartões agrupados via titulo_cartoes + JOIN titulos
         $orderBy = match($ordenarPor) {
-            'cpfs' => 'COUNT(DISTINCT documento_titular) DESC',
-            'consultores' => 'COUNT(DISTINCT promotor) DESC',
-            'inadimplentes' => 'SUM(CASE WHEN status_inadimplencia LIKE \'INADIMPLENTE%\' THEN 1 ELSE 0 END) DESC',
-            'bloqueados' => 'SUM(CASE WHEN status_titulo IN (\'Bloqueado\', \'Cancelado\') THEN 1 ELSE 0 END) DESC',
-            default => 'COUNT(*) DESC'
+            'cpfs' => 'COUNT(DISTINCT t.documento_titular) DESC',
+            'consultores' => 'COUNT(DISTINCT t.promotor) DESC',
+            'inadimplentes' => 'SUM(CASE WHEN t.status_inadimplencia LIKE \'INADIMPLENTE%\' THEN 1 ELSE 0 END) DESC',
+            'bloqueados' => 'SUM(CASE WHEN t.status_titulo IN (\'Bloqueado\', \'Cancelado\') THEN 1 ELSE 0 END) DESC',
+            default => 'COUNT(DISTINCT t.id) DESC'
         };
+
+        // Construir WHERE para pesquisa na nova estrutura
+        $wherePesquisaNew = "";
+        if ($pesquisa) {
+            $wherePesquisaNew = " AND (tc.numero_cartao LIKE ? OR tc.bandeira LIKE ? OR t.promotor LIKE ?)";
+        }
 
         $cartoesMultiplos = $db->fetchAll("
             SELECT
-                numero_cartao,
-                GROUP_CONCAT(DISTINCT bandeira ORDER BY bandeira SEPARATOR ', ') as bandeiras,
-                COUNT(*) as total_titulos,
-                COUNT(DISTINCT documento_titular) as total_documentos,
-                COUNT(DISTINCT promotor) as total_consultores,
-                GROUP_CONCAT(DISTINCT promotor ORDER BY promotor SEPARATOR ', ') as consultores,
-                SUM(CASE WHEN status_inadimplencia LIKE 'INADIMPLENTE%' THEN 1 ELSE 0 END) as inadimplentes,
-                SUM(CASE WHEN status_inadimplencia NOT LIKE 'INADIMPLENTE%' THEN 1 ELSE 0 END) as adimplentes,
-                SUM(CASE WHEN status_titulo = 'Ativo' THEN 1 ELSE 0 END) as ativos,
-                SUM(CASE WHEN status_titulo = 'Bloqueado' THEN 1 ELSE 0 END) as bloqueados,
-                SUM(CASE WHEN status_titulo = 'Cancelado' THEN 1 ELSE 0 END) as cancelados,
+                tc.numero_cartao,
+                GROUP_CONCAT(DISTINCT tc.bandeira ORDER BY tc.bandeira SEPARATOR ', ') as bandeiras,
+                COUNT(DISTINCT t.id) as total_titulos,
+                COUNT(DISTINCT t.documento_titular) as total_documentos,
+                COUNT(DISTINCT t.promotor) as total_consultores,
+                GROUP_CONCAT(DISTINCT t.promotor ORDER BY t.promotor SEPARATOR ', ') as consultores,
+                SUM(CASE WHEN t.status_inadimplencia LIKE 'INADIMPLENTE%' THEN 1 ELSE 0 END) as inadimplentes,
+                SUM(CASE WHEN t.status_inadimplencia NOT LIKE 'INADIMPLENTE%' THEN 1 ELSE 0 END) as adimplentes,
+                SUM(CASE WHEN t.status_titulo = 'Ativo' THEN 1 ELSE 0 END) as ativos,
+                SUM(CASE WHEN t.status_titulo = 'Bloqueado' THEN 1 ELSE 0 END) as bloqueados,
+                SUM(CASE WHEN t.status_titulo = 'Cancelado' THEN 1 ELSE 0 END) as cancelados,
                 CASE
-                    WHEN MAX(CASE WHEN bandeira LIKE '%DEBITO%' OR bandeira LIKE '%DEBIT%' THEN 1 ELSE 0 END) = 1 THEN 'DÉBITO'
-                    WHEN MAX(CASE WHEN bandeira LIKE '%CREDITO%' OR bandeira LIKE '%CREDIT%' THEN 1 ELSE 0 END) = 1 THEN 'CRÉDITO'
+                    WHEN MAX(CASE WHEN tc.bandeira LIKE '%DEBITO%' OR tc.bandeira LIKE '%DEBIT%' THEN 1 ELSE 0 END) = 1 THEN 'DÉBITO'
+                    WHEN MAX(CASE WHEN tc.bandeira LIKE '%CREDITO%' OR tc.bandeira LIKE '%CREDIT%' THEN 1 ELSE 0 END) = 1 THEN 'CRÉDITO'
+                    WHEN MAX(CASE WHEN tc.tipo_pagamento LIKE '%DEBITO%' OR tc.tipo_pagamento LIKE '%DEBIT%' THEN 1 ELSE 0 END) = 1 THEN 'DÉBITO'
+                    WHEN MAX(CASE WHEN tc.tipo_pagamento LIKE '%CREDITO%' OR tc.tipo_pagamento LIKE '%CREDIT%' THEN 1 ELSE 0 END) = 1 THEN 'CRÉDITO'
                     ELSE 'OUTRO'
                 END as tipo_principal
-            FROM titulos
-            WHERE numero_cartao IS NOT NULL
-              AND numero_cartao != ''
-              AND numero_cartao != 'NULL'
+            FROM titulo_cartoes tc
+            INNER JOIN titulos t ON tc.titulo_id = t.id
+            WHERE tc.numero_cartao IS NOT NULL
+              AND tc.numero_cartao != ''
+              AND tc.numero_cartao != 'NULL'
               {$wherePrefixos}
-              {$wherePesquisa}
-            GROUP BY numero_cartao
-            HAVING COUNT(*) >= 2
+              {$wherePesquisaNew}
+            GROUP BY tc.numero_cartao
+            HAVING COUNT(DISTINCT t.id) >= 2
             ORDER BY
-                MAX(CASE WHEN bandeira LIKE '%DEBITO%' OR bandeira LIKE '%DEBIT%' THEN 1 ELSE 0 END) DESC,
+                MAX(CASE WHEN tc.bandeira LIKE '%DEBITO%' OR tc.bandeira LIKE '%DEBIT%' OR tc.tipo_pagamento LIKE '%DEBITO%' THEN 1 ELSE 0 END) DESC,
                 {$orderBy}
         ", $paramsPesquisa);
 
