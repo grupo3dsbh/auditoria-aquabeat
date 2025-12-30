@@ -186,37 +186,22 @@ foreach ($titulos as $titulo) {
 $taxaInadimplencia = $totalTitulos > 0 ? round(($inadimplentes / $totalTitulos) * 100, 2) : 0;
 
 // Gerar análise com IA
-require_once APP_ROOT . '/includes/IAProvider.php';
-$iaProvider = new IAProvider();
+$aiService = new AIService();
 
-$prompt = "Analise os seguintes dados de inadimplência e forneça insights objetivos (sem acusar ninguém):
-
-**Estatísticas Gerais:**
-- Total de títulos: {$totalTitulos}
-- Inadimplentes: {$inadimplentes}
-- Adimplentes: {$adimplentes}
-- Taxa de inadimplência: {$taxaInadimplencia}%
-- Valor total pago: R$ " . number_format($valorTotalPago, 2, ',', '.') . "
-- Valor total perdido: R$ " . number_format($valorTotalPerdido, 2, ',', '.') . "
-
-**Cartões com Alta Inadimplência:**
-" . (!empty($cartoesRisco) ? implode("\n", array_map(function($c) {
-    return "- {$c['numero']} ({$c['bandeira']}): {$c['inadimplentes']}/{$c['total_titulos']} títulos inadimplentes ({$c['taxa']}%)";
-}, $cartoesRisco)) : 'Nenhum cartão de alto risco identificado') . "
-
-**Promotores com Alta Inadimplência:**
-" . (!empty($promotoresRisco) ? implode("\n", array_map(function($p) {
-    return "- {$p['nome']}: {$p['inadimplentes']}/{$p['vendas']} vendas inadimplentes ({$p['taxa']}%)";
-}, $promotoresRisco)) : 'Nenhum promotor de alto risco identificado') . "
-
-Forneça uma análise em 3-5 parágrafos destacando:
-1. Visão geral da situação
-2. Padrões identificados
-3. Possíveis causas (sem culpar indivíduos)
-4. Recomendações de ação";
+$dadosAnalise = [
+    'total_titulos' => $totalTitulos,
+    'inadimplentes' => $inadimplentes,
+    'adimplentes' => $adimplentes,
+    'taxa_inadimplencia' => $taxaInadimplencia,
+    'valor_total_pago' => $valorTotalPago,
+    'valor_total_perdido' => $valorTotalPerdido,
+    'cartoes_risco' => $cartoesRisco,
+    'promotores_risco' => $promotoresRisco
+];
 
 try {
-    $analiseIA = $iaProvider->chat($prompt);
+    $resultadoIA = $aiService->analyzeDelinquencyData($dadosAnalise, 'geral');
+    $analiseIA = $resultadoIA['success'] ? $resultadoIA['content'] : 'Erro ao gerar análise: ' . ($resultadoIA['error'] ?? 'Desconhecido');
 } catch (Exception $e) {
     $analiseIA = "Erro ao gerar análise: " . $e->getMessage();
 }
