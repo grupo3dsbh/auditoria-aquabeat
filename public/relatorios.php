@@ -2572,7 +2572,7 @@ endif;
                 if (promotor) body.promotor = promotor;
 
                 // Chamar API
-                const response = await fetch(window.location.origin + '/api/gerar_pdf_relatorio.php', {
+                const response = await fetch(window.location.origin + '/auditory/api/gerar_pdf_relatorio.php', {
                     method: 'POST',
                     headers: {
                         'Authorization': `Bearer ${token}`,
