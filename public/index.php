@@ -131,24 +131,31 @@ $topConsultoresAltoRisco = [];
 if ($ultimaImportacao) {
     $topConsultoresAltoRisco = $db->fetchAll("
         SELECT
-            promotor,
-            COUNT(*) as total_vendas,
-            COUNT(CASE WHEN bandeira LIKE '%DEBITO%' OR bandeira LIKE '%DEBIT%' THEN 1 END) as vendas_debito,
-            COUNT(CASE WHEN bandeira LIKE '%PIX%' OR bandeira LIKE '%CARTEIRA%' THEN 1 END) as vendas_pix,
-            COUNT(CASE WHEN (bandeira LIKE '%DEBITO%' OR bandeira LIKE '%DEBIT%'
-                         OR bandeira LIKE '%PIX%' OR bandeira LIKE '%CARTEIRA%')
-                       AND (status_titulo IN ('Bloqueado', 'Cancelado') OR qtd_parcelas_pagas <= 2) THEN 1 END) as problemas_debito_pix,
-            COUNT(CASE WHEN status_titulo IN ('Bloqueado', 'Cancelado') THEN 1 END) as titulos_bloqueados,
-            COUNT(CASE WHEN qtd_parcelas_pagas = 1 THEN 1 END) as apenas_1a_parcela,
-            ROUND(COUNT(CASE WHEN (bandeira LIKE '%DEBITO%' OR bandeira LIKE '%DEBIT%'
-                               OR bandeira LIKE '%PIX%' OR bandeira LIKE '%CARTEIRA%')
-                           AND (status_titulo IN ('Bloqueado', 'Cancelado') OR qtd_parcelas_pagas <= 2) THEN 1 END) * 100.0 / COUNT(*), 2) as taxa_risco
-        FROM titulos
-        WHERE importacao_id = ?
-          AND data_primeira_venda BETWEEN ? AND ?
-          AND promotor IS NOT NULL
+            t.promotor,
+            COUNT(DISTINCT t.id) as total_vendas,
+            COUNT(CASE WHEN tc.bandeira LIKE '%DEBITO%' OR tc.bandeira LIKE '%DEBIT%'
+                         OR tc.tipo_pagamento LIKE '%DEBITO%' OR tc.tipo_pagamento LIKE '%DEBIT%' THEN 1 END) as vendas_debito,
+            COUNT(CASE WHEN tc.bandeira LIKE '%PIX%' OR tc.bandeira LIKE '%CARTEIRA%'
+                         OR tc.tipo_pagamento LIKE '%PIX%' OR tc.tipo_pagamento LIKE '%CARTEIRA%' THEN 1 END) as vendas_pix,
+            COUNT(CASE WHEN (tc.bandeira LIKE '%DEBITO%' OR tc.bandeira LIKE '%DEBIT%'
+                         OR tc.tipo_pagamento LIKE '%DEBITO%' OR tc.tipo_pagamento LIKE '%DEBIT%'
+                         OR tc.bandeira LIKE '%PIX%' OR tc.bandeira LIKE '%CARTEIRA%'
+                         OR tc.tipo_pagamento LIKE '%PIX%' OR tc.tipo_pagamento LIKE '%CARTEIRA%')
+                       AND (t.status_titulo IN ('Bloqueado', 'Cancelado') OR t.qtd_parcelas_pagas <= 2) THEN 1 END) as problemas_debito_pix,
+            COUNT(CASE WHEN t.status_titulo IN ('Bloqueado', 'Cancelado') THEN 1 END) as titulos_bloqueados,
+            COUNT(CASE WHEN t.qtd_parcelas_pagas = 1 THEN 1 END) as apenas_1a_parcela,
+            ROUND(COUNT(CASE WHEN (tc.bandeira LIKE '%DEBITO%' OR tc.bandeira LIKE '%DEBIT%'
+                               OR tc.tipo_pagamento LIKE '%DEBITO%' OR tc.tipo_pagamento LIKE '%DEBIT%'
+                               OR tc.bandeira LIKE '%PIX%' OR tc.bandeira LIKE '%CARTEIRA%'
+                               OR tc.tipo_pagamento LIKE '%PIX%' OR tc.tipo_pagamento LIKE '%CARTEIRA%')
+                           AND (t.status_titulo IN ('Bloqueado', 'Cancelado') OR t.qtd_parcelas_pagas <= 2) THEN 1 END) * 100.0 / COUNT(DISTINCT t.id), 2) as taxa_risco
+        FROM titulos t
+        LEFT JOIN titulo_cartoes tc ON t.id = tc.titulo_id
+        WHERE t.importacao_id = ?
+          AND t.data_primeira_venda BETWEEN ? AND ?
+          AND t.promotor IS NOT NULL
           {$whereUsadoRelatorios}
-        GROUP BY promotor
+        GROUP BY t.promotor
         HAVING (vendas_debito > 0 OR vendas_pix > 0) AND problemas_debito_pix > 0
         ORDER BY problemas_debito_pix DESC, taxa_risco DESC
         LIMIT 10

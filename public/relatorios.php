@@ -2197,13 +2197,13 @@ endif;
                                 <th>Título</th>
                                 <th>Titular</th>
                                 <th>Promotor</th>
+                                <th>Data Venda</th>
                                 <th>Status</th>
                                 <th>Inadimplência</th>
                                 <th>Parcelas</th>
                                 <th>Vlr. Parcela</th>
                                 <th>Total Pago</th>
                                 <th>Saldo</th>
-                                <th>Data Venda</th>
                             </tr>
                         </thead>
                         <tbody id="tabelaTitulos">
@@ -2286,6 +2286,7 @@ endif;
                                         </small>
                                     </td>
                                     <td><small><?php echo sanitize($titulo['promotor']); ?></small></td>
+                                    <td><small><?php echo formatDate($titulo['data_primeira_venda']); ?></small></td>
                                     <td>
                                         <span class="badge bg-<?php echo getStatusBadgeClass($titulo['status_titulo']); ?>">
                                             <?php echo $titulo['status_titulo']; ?>
@@ -2296,7 +2297,6 @@ endif;
                                     <td><small><?php echo formatCurrency($titulo['valor_parcela'] ?? 0); ?></small></td>
                                     <td><small><?php echo formatCurrency($titulo['total_pago'] ?? 0); ?></small></td>
                                     <td><small><?php echo formatCurrency($titulo['saldo_restante'] ?? 0); ?></small></td>
-                                    <td><small><?php echo formatDate($titulo['data_primeira_venda']); ?></small></td>
                                 </tr>
                             <?php endforeach; ?>
                         </tbody>
@@ -2615,21 +2615,43 @@ endif;
                 newWindow.document.write(data.html);
                 newWindow.document.close();
 
-                // Mostrar estatísticas
-                alert(`✅ Relatório gerado com sucesso!\n\n` +
-                      `📊 Estatísticas:\n` +
-                      `• Total: ${data.estatisticas.total_titulos} títulos\n` +
-                      `• Inadimplentes: ${data.estatisticas.inadimplentes}\n` +
-                      `• Taxa: ${data.estatisticas.taxa_inadimplencia}%\n\n` +
-                      `💡 Use Ctrl+P na nova janela para salvar como PDF`);
+                // Mostrar estatísticas via modal Bootstrap
+                const conteudoSucesso = `
+                    <div class="alert alert-info mb-3">
+                        <h6 class="mb-2"><i class="bi bi-bar-chart-fill"></i> Estatísticas do Relatório:</h6>
+                        <ul class="mb-0">
+                            <li><strong>Total:</strong> ${data.estatisticas.total_titulos} títulos</li>
+                            <li><strong>Inadimplentes:</strong> ${data.estatisticas.inadimplentes}</li>
+                            <li><strong>Taxa de Inadimplência:</strong> ${data.estatisticas.taxa_inadimplencia}%</li>
+                        </ul>
+                    </div>
+                    <div class="alert alert-success mb-0">
+                        <i class="bi bi-printer"></i> <strong>Dica:</strong> Use <kbd>Ctrl+P</kbd> na nova janela para salvar como PDF
+                    </div>
+                `;
+                document.getElementById('modalPDFSucessoConteudo').innerHTML = conteudoSucesso;
+                const modalSucesso = new bootstrap.Modal(document.getElementById('modalPDFSucesso'));
+                modalSucesso.show();
 
             } catch (error) {
                 console.error('Erro:', error);
-                alert(`❌ Erro ao gerar relatório:\n${error.message}\n\n` +
-                      `Verifique:\n` +
-                      `• Token de API válido\n` +
-                      `• Conexão com a internet\n` +
-                      `• Console do navegador (F12) para mais detalhes`);
+                const conteudoErro = `
+                    <div class="alert alert-danger mb-3">
+                        <p class="mb-2"><strong>Mensagem de erro:</strong></p>
+                        <code>${error.message}</code>
+                    </div>
+                    <div class="alert alert-warning mb-0">
+                        <h6 class="mb-2"><i class="bi bi-check2-square"></i> Verifique:</h6>
+                        <ul class="mb-0">
+                            <li>Token de API válido</li>
+                            <li>Conexão com a internet</li>
+                            <li>Console do navegador (F12) para mais detalhes</li>
+                        </ul>
+                    </div>
+                `;
+                document.getElementById('modalPDFErroConteudo').innerHTML = conteudoErro;
+                const modalErro = new bootstrap.Modal(document.getElementById('modalPDFErro'));
+                modalErro.show();
             } finally {
                 btn.innerHTML = originalHTML;
                 btn.disabled = false;
@@ -2693,6 +2715,46 @@ endif;
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal de Sucesso após Gerar PDF -->
+    <div class="modal fade" id="modalPDFSucesso" tabindex="-1" aria-labelledby="modalPDFSucessoLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header bg-success text-white">
+                    <h5 class="modal-title" id="modalPDFSucessoLabel">✅ Relatório Gerado com Sucesso!</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="modalPDFSucessoConteudo">
+                        <!-- Conteúdo será preenchido via JavaScript -->
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-success" data-bs-dismiss="modal">OK</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal de Erro ao Gerar PDF -->
+    <div class="modal fade" id="modalPDFErro" tabindex="-1" aria-labelledby="modalPDFErroLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header bg-danger text-white">
+                    <h5 class="modal-title" id="modalPDFErroLabel">❌ Erro ao Gerar Relatório</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="modalPDFErroConteudo">
+                        <!-- Conteúdo será preenchido via JavaScript -->
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
                 </div>
             </div>
         </div>
