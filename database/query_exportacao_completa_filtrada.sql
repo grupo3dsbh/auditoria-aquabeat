@@ -37,10 +37,15 @@ SELECT
      WHERE NumeroTitulo = pt.NumeroTitulo
      ORDER BY DataVenda DESC) AS NomeProdutoAtual,
 
-    -- Alterou Vagas?
+    -- Alterou Vagas? (verifica se pagou "Diferença" OU se produto original é diferente da categoria atual)
     CASE WHEN
-        (SELECT TOP 1 NomeProduto FROM [dbo].[PaidTitles] WHERE NumeroTitulo = pt.NumeroTitulo AND NomeProduto LIKE '%Sócio%' ORDER BY DataVenda ASC) <>
-        (SELECT TOP 1 Categoria FROM [dbo].[PaidTitles] WHERE NumeroTitulo = pt.NumeroTitulo ORDER BY DataVenda DESC)
+        -- Verifica se tem "Diferença de Mensalidade" (sinal claro de mudança de vaga)
+        EXISTS (SELECT 1 FROM [dbo].[PaidTitles]
+                WHERE NumeroTitulo = pt.NumeroTitulo
+                AND (NomeProduto LIKE '%Diferença%' OR NomeProduto LIKE '%Mudança%' OR NomeProduto LIKE '%Alteração%'))
+        -- OU se o produto original é diferente da categoria atual
+        OR RTRIM(LTRIM((SELECT TOP 1 NomeProduto FROM [dbo].[PaidTitles] WHERE NumeroTitulo = pt.NumeroTitulo AND NomeProduto LIKE '%Sócio%' ORDER BY DataVenda ASC))) <>
+           RTRIM(LTRIM((SELECT TOP 1 Categoria FROM [dbo].[PaidTitles] WHERE NumeroTitulo = pt.NumeroTitulo ORDER BY DataVenda DESC)))
     THEN 'Sim' ELSE 'Não' END AS AlterouVagas,
 
     -- Categoria
