@@ -27,22 +27,23 @@ SELECT
     -- Identificação do Título
     pt.NumeroTitulo,
 
-    -- Produto Original (primeira venda)
+    -- Produto Original (primeira venda com "Sócio")
     (SELECT TOP 1 NomeProduto
      FROM [dbo].[PaidTitles]
      WHERE NumeroTitulo = pt.NumeroTitulo
+       AND NomeProduto LIKE '%Sócio%'
      ORDER BY DataVenda ASC) AS NomeProdutoOriginal,
 
-    -- Produto Atual (última venda)
-    (SELECT TOP 1 NomeProduto
+    -- Produto Atual = CATEGORIA (ignora Pulseira Troca, Mudança de categoria, etc)
+    (SELECT TOP 1 Categoria
      FROM [dbo].[PaidTitles]
      WHERE NumeroTitulo = pt.NumeroTitulo
      ORDER BY DataVenda DESC) AS NomeProdutoAtual,
 
-    -- Alterou Vagas?
+    -- Alterou Vagas? (compara Produto Original com Categoria Atual)
     CASE WHEN
-        (SELECT TOP 1 NomeProduto FROM [dbo].[PaidTitles] WHERE NumeroTitulo = pt.NumeroTitulo ORDER BY DataVenda ASC) <>
-        (SELECT TOP 1 NomeProduto FROM [dbo].[PaidTitles] WHERE NumeroTitulo = pt.NumeroTitulo ORDER BY DataVenda DESC)
+        (SELECT TOP 1 NomeProduto FROM [dbo].[PaidTitles] WHERE NumeroTitulo = pt.NumeroTitulo AND NomeProduto LIKE '%Sócio%' ORDER BY DataVenda ASC) <>
+        (SELECT TOP 1 Categoria FROM [dbo].[PaidTitles] WHERE NumeroTitulo = pt.NumeroTitulo ORDER BY DataVenda DESC)
     THEN 'Sim' ELSE 'Não' END AS AlterouVagas,
 
     -- Categoria
