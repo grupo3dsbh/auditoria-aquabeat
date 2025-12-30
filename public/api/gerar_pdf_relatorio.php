@@ -4,8 +4,24 @@
  * Endpoint para gerar relatório em PDF com análise de inadimplência usando IA
  */
 
+// Suprimir warnings e notices - apenas erros fatais
+error_reporting(E_ERROR | E_PARSE);
+ini_set('display_errors', '0');
+
 define('APP_ROOT', dirname(dirname(__DIR__)));
-require_once APP_ROOT . '/includes/bootstrap.php';
+
+// Tentar carregar bootstrap com tratamento de erro
+try {
+    require_once APP_ROOT . '/includes/bootstrap.php';
+} catch (Throwable $e) {
+    header('Content-Type: application/json; charset=utf-8');
+    http_response_code(500);
+    echo json_encode([
+        'success' => false,
+        'error' => 'Erro ao carregar sistema: ' . $e->getMessage()
+    ], JSON_UNESCAPED_UNICODE);
+    exit;
+}
 
 header('Content-Type: application/json; charset=utf-8');
 
@@ -47,6 +63,9 @@ function validarToken($token) {
 
     return $tokenData;
 }
+
+// Try-catch global para capturar qualquer erro
+try {
 
 // Validar método HTTP
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
@@ -234,6 +253,18 @@ echo json_encode([
     'promotores_risco' => array_values($promotoresRisco),
     'analise_ia' => $analiseIA
 ], JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
+
+} catch (Throwable $e) {
+    // Capturar qualquer erro e retornar JSON
+    http_response_code(500);
+    echo json_encode([
+        'success' => false,
+        'error' => 'Erro interno: ' . $e->getMessage(),
+        'file' => basename($e->getFile()),
+        'line' => $e->getLine()
+    ], JSON_UNESCAPED_UNICODE);
+    exit;
+}
 
 /**
  * Gerar HTML formatado para impressão/PDF
