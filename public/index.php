@@ -158,37 +158,35 @@ if ($ultimaImportacao) {
 // Top cartões duplicados (usados em múltiplos títulos) - INDICADOR DE FRAUDE
 $topCartoesRisco = [];
 if ($ultimaImportacao) {
+    // Usar tabela analise_cartoes que já tem os dados agregados
     $topCartoesRisco = $db->fetchAll("
         SELECT
-            numero_cartao,
-            GROUP_CONCAT(DISTINCT bandeira ORDER BY bandeira SEPARATOR ', ') as bandeira,
-            COUNT(*) as total_titulos,
-            COUNT(DISTINCT documento_titular) as total_documentos,
-            GROUP_CONCAT(DISTINCT promotor ORDER BY promotor SEPARATOR ', ') as consultores,
+            ac.numero_cartao,
+            ac.bandeira,
+            ac.total_titulos_no_cartao as total_titulos,
+            ac.total_documentos_no_cartao as total_documentos,
+            (SELECT GROUP_CONCAT(DISTINCT t.promotor ORDER BY t.promotor SEPARATOR ', ')
+             FROM titulo_cartoes tc
+             INNER JOIN titulos t ON tc.titulo_id = t.id
+             WHERE tc.numero_cartao = ac.numero_cartao
+               AND t.importacao_id = ac.importacao_id
+            ) as consultores,
             CASE
-                WHEN MAX(CASE WHEN bandeira LIKE '%DEBITO%' OR bandeira LIKE '%DEBIT%' THEN 1 ELSE 0 END) = 1 THEN 'DÉBITO'
-                WHEN MAX(CASE WHEN bandeira LIKE '%CREDITO%' OR bandeira LIKE '%CREDIT%' THEN 1 ELSE 0 END) = 1 THEN 'CRÉDITO'
+                WHEN ac.tipo_pagamento_cartao LIKE '%DEBITO%' OR ac.tipo_pagamento_cartao LIKE '%DEBIT%' THEN 'DÉBITO'
+                WHEN ac.tipo_pagamento_cartao LIKE '%CREDITO%' OR ac.tipo_pagamento_cartao LIKE '%CREDIT%' THEN 'CRÉDITO'
+                WHEN ac.bandeira LIKE '%DEBITO%' OR ac.bandeira LIKE '%DEBIT%' THEN 'DÉBITO'
+                WHEN ac.bandeira LIKE '%CREDITO%' OR ac.bandeira LIKE '%CREDIT%' THEN 'CRÉDITO'
                 ELSE 'DESCONHECIDO'
             END as tipo_cartao,
-            CASE
-                WHEN COUNT(*) >= 10 THEN 'ALTO RISCO'
-                WHEN COUNT(*) >= 5 THEN 'MÉDIO RISCO'
-                ELSE 'BAIXO RISCO'
-            END as nivel_risco
-        FROM titulos
-        WHERE importacao_id = ?
-          AND data_primeira_venda BETWEEN ? AND ?
-          AND numero_cartao IS NOT NULL
-          AND numero_cartao != ''
-          AND numero_cartao != 'NULL'
-          {$whereUsadoRelatorios}
-        GROUP BY numero_cartao
-        HAVING COUNT(*) >= 2
+            ac.nivel_risco
+        FROM analise_cartoes ac
+        WHERE ac.importacao_id = ?
         ORDER BY
-            MAX(CASE WHEN bandeira LIKE '%DEBITO%' OR bandeira LIKE '%DEBIT%' THEN 1 ELSE 0 END) DESC,
-            COUNT(*) DESC
+            CASE WHEN ac.tipo_pagamento_cartao LIKE '%DEBITO%' OR ac.bandeira LIKE '%DEBITO%' THEN 0 ELSE 1 END,
+            ac.total_titulos_no_cartao DESC,
+            ac.total_documentos_no_cartao DESC
         LIMIT 10
-    ", [$importacaoId, $dataInicio . ' 00:00:00', $dataFim . ' 23:59:59']);
+    ", [$importacaoId]);
 }
 ?>
 <!DOCTYPE html>
