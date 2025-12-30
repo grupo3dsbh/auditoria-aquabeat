@@ -361,18 +361,46 @@ class AIService {
                 break;
 
             default:
-                $prompt .= "Faça uma análise geral dos dados de inadimplência:\n";
-                $prompt .= "1. Resumo executivo dos principais indicadores\n";
-                $prompt .= "2. Pontos críticos de atenção (considerando benchmark de 35%)\n";
-                $prompt .= "3. Riscos identificados\n";
-                $prompt .= "4. Recomendações prioritárias\n\n";
+                $prompt .= "Faça uma análise COMPLETA e DETALHADA dos dados de inadimplência.\n\n";
+                $prompt .= "REQUISITOS OBRIGATÓRIOS:\n";
+                $prompt .= "- A análise deve ter NO MÍNIMO 500 palavras\n";
+                $prompt .= "- Seja extremamente detalhado e aprofundado\n";
+                $prompt .= "- Cite números específicos, percentuais e valores monetários\n";
+                $prompt .= "- Faça comparações e análises proporcionais\n";
+                $prompt .= "- Use sua expertise de 15 anos para trazer insights profundos\n\n";
+                $prompt .= "ESTRUTURA DA ANÁLISE:\n\n";
+                $prompt .= "1. **Resumo Executivo dos Principais Indicadores**\n";
+                $prompt .= "   - Analise TODOS os números apresentados em detalhes\n";
+                $prompt .= "   - Compare com benchmarks do setor (35% inadimplência)\n";
+                $prompt .= "   - Calcule proporções, percentuais e relacionamentos entre os dados\n";
+                $prompt .= "   - Contextualize cada indicador com sua experiência no setor\n\n";
+                $prompt .= "2. **Pontos Críticos de Atenção**\n";
+                $prompt .= "   - Identifique padrões específicos nos dados\n";
+                $prompt .= "   - Analise distribuição de inadimplência por período, categoria, etc\n";
+                $prompt .= "   - Considere sazonalidade típica de parques aquáticos\n";
+                $prompt .= "   - Aponte oportunidades de melhoria baseadas nos números\n\n";
+                $prompt .= "3. **Riscos Identificados**\n";
+                $prompt .= "   - Liste riscos específicos com base nos dados apresentados\n";
+                $prompt .= "   - Quantifique impactos financeiros potenciais\n";
+                $prompt .= "   - Classifique riscos por severidade e probabilidade\n";
+                $prompt .= "   - Relacione com características do setor de parques aquáticos\n\n";
+                $prompt .= "4. **Recomendações Prioritárias**\n";
+                $prompt .= "   - Forneça recomendações ESPECÍFICAS e ACIONÁVEIS\n";
+                $prompt .= "   - Priorize ações por impacto e facilidade de implementação\n";
+                $prompt .= "   - Sugira metas numéricas baseadas nos dados atuais\n";
+                $prompt .= "   - Inclua práticas do setor e sua experiência de 15 anos\n";
+                $prompt .= "   - Aponte indicadores-chave para monitoramento contínuo\n\n";
         }
 
-        $prompt .= "Dados:\n";
+        $prompt .= "Dados para análise:\n";
         $prompt .= json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
-        $prompt .= "\n\nForneça uma análise clara, objetiva e em português do Brasil.\n";
-        $prompt .= "IMPORTANTE: Use formatação markdown para negrito (**texto**).\n";
-        $prompt .= "NÃO use tags HTML como <strong>, <h1>, etc. Use APENAS markdown simples.";
+        $prompt .= "\n\n=== INSTRUÇÕES FINAIS ===\n";
+        $prompt .= "- Forneça uma análise ROBUSTA, DETALHADA e PROFISSIONAL em português do Brasil\n";
+        $prompt .= "- Use formatação markdown para negrito: **texto importante**\n";
+        $prompt .= "- NÃO use tags HTML (<strong>, <h1>, etc). Use APENAS markdown simples\n";
+        $prompt .= "- A análise DEVE ser extensa, detalhada e cheia de insights valiosos\n";
+        $prompt .= "- Demonstre sua expertise com análises profundas e contextualizadas\n";
+        $prompt .= "- LEMBRE-SE: até 35% de inadimplência é NORMAL no setor de parques aquáticos!";
 
         return $prompt;
     }
