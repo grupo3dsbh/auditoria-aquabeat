@@ -713,10 +713,12 @@ if ($viewCartoes):
             default => 'data_primeira_venda DESC'
         };
 
+        // Buscar títulos que usam este cartão (via tabela titulo_cartoes)
         $titulosCartao = $db->fetchAll("
-            SELECT *
-            FROM titulos
-            WHERE numero_cartao = ?
+            SELECT t.*
+            FROM titulos t
+            INNER JOIN titulo_cartoes tc ON t.id = tc.titulo_id
+            WHERE tc.numero_cartao = ?
               {$wherePrefixos}
             ORDER BY {$orderByDetalhes}
         ", [$numeroCartao]);
@@ -741,7 +743,12 @@ if ($viewCartoes):
             'cancelados' => count(array_filter($titulosCartao, function($t) {
                 return $t['status_titulo'] === 'Cancelado';
             })),
-            'bandeiras' => implode(', ', array_unique(array_column($titulosCartao, 'bandeira')))
+            // Buscar bandeiras do cartão da tabela titulo_cartoes
+            'bandeiras' => $db->fetchColumn("
+                SELECT GROUP_CONCAT(DISTINCT bandeira SEPARATOR ', ')
+                FROM titulo_cartoes
+                WHERE numero_cartao = ?
+            ", [$numeroCartao]) ?? ''
         ];
     } else {
         // Construir WHERE para pesquisa
