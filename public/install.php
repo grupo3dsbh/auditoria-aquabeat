@@ -196,7 +196,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $config_content .= "// Configurações de API IA\n";
                 $config_content .= "define('AI_PROVIDER', '{$ai_provider}');\n";
                 $config_content .= "define('AI_API_KEY', '" . addslashes($ai_key) . "');\n";
-                $config_content .= "define('AI_MODEL_GROQ', 'llama-3.1-70b-versatile');\n";
+                $config_content .= "define('AI_MODEL_GROQ', 'llama-3.3-70b-versatile');\n";
                 $config_content .= "define('AI_MODEL_OPENAI', 'gpt-4-turbo-preview');\n";
                 $config_content .= "define('AI_MAX_TOKENS', 4000);\n";
                 $config_content .= "define('AI_TEMPERATURE', 0.7);\n\n";

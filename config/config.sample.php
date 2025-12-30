@@ -39,7 +39,7 @@ define('LOG_RETENTION_DAYS', 90);
 // Configurações de API IA
 define('AI_PROVIDER', 'groq'); // groq ou openai
 define('AI_API_KEY', ''); // Preencher com sua chave
-define('AI_MODEL_GROQ', 'llama-3.1-70b-versatile');
+define('AI_MODEL_GROQ', 'llama-3.3-70b-versatile'); // Atualizado: 3.1 foi descontinuado
 define('AI_MODEL_OPENAI', 'gpt-4-turbo-preview');
 define('AI_MAX_TOKENS', 4000);
 define('AI_TEMPERATURE', 0.7);
