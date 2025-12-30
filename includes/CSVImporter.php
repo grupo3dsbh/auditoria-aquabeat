@@ -643,6 +643,20 @@ class CSVImporter {
             }
         }
 
+        // Calcular valor_total_plano se não veio do CSV
+        if (!isset($data['valor_total_plano']) || $data['valor_total_plano'] === null) {
+            if (isset($data['valor_parcela']) && isset($data['quantidade_parcelas_venda'])) {
+                $data['valor_total_plano'] = $data['valor_parcela'] * $data['quantidade_parcelas_venda'];
+            }
+        }
+
+        // Calcular saldo_restante se não veio do CSV
+        if (!isset($data['saldo_restante']) || $data['saldo_restante'] === null) {
+            if (isset($data['valor_total_plano']) && isset($data['total_pago'])) {
+                $data['saldo_restante'] = $data['valor_total_plano'] - $data['total_pago'];
+            }
+        }
+
         return $data;
     }
 
@@ -688,12 +702,20 @@ class CSVImporter {
      * Processa strings concatenadas com ' | ' e insere cada cartão separadamente
      */
     private function inserirCartoes($tituloId, $numeroCartoes, $bandeiras, $tipoPagamento) {
-        // Deletar cartões antigos deste título (para re-importação)
+        // Verificar se tabela existe antes de tentar deletar
         try {
+            // Tentar verificar se tabela existe
+            $this->db->query("SELECT 1 FROM titulo_cartoes LIMIT 1");
+
+            // Se chegou aqui, tabela existe - deletar cartões antigos
             $this->db->delete('titulo_cartoes', 'titulo_id = ?', [$tituloId]);
         } catch (Exception $e) {
-            // Tabela pode não existir ainda
-            return;
+            // Tabela não existe - logar erro
+            Logger::error("Tabela titulo_cartoes não existe. Execute a migration 006.", [
+                'titulo_id' => $tituloId,
+                'erro' => $e->getMessage()
+            ]);
+            // NÃO retornar - tentar inserir mesmo assim (pode ser que só o DELETE falhou)
         }
 
         // Separar por pipe |

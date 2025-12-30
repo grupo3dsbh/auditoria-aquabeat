@@ -4,7 +4,7 @@
 CREATE TABLE IF NOT EXISTS titulo_cartoes (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
     titulo_id BIGINT NOT NULL,
-    numero_cartao VARCHAR(20),
+    numero_cartao VARCHAR(150),
     bandeira VARCHAR(50),
     tipo_pagamento VARCHAR(50),
     data_primeiro_uso DATETIME NULL,
