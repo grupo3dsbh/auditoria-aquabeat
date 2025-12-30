@@ -162,8 +162,8 @@ WHERE pt.[DataCadastro] BETWEEN @DataInicio AND @DataFim
        FROM [dbo].[PaidTitles]
        WHERE NumeroTitulo = pt.NumeroTitulo
        ORDER BY DataVenda ASC) LIKE '%Sócio%'
-  -- FILTRO 3: Produto ATUAL deve conter "Sócio"
-  AND (SELECT TOP 1 NomeProduto
+  -- FILTRO 3: CATEGORIA deve conter "Sócio" (ignora Pulseira Troca, Consumo Crédito, etc)
+  AND (SELECT TOP 1 Categoria
        FROM [dbo].[PaidTitles]
        WHERE NumeroTitulo = pt.NumeroTitulo
        ORDER BY DataVenda DESC) LIKE '%Sócio%'
