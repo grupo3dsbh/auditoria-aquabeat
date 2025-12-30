@@ -55,39 +55,53 @@ if ($ultimaImportacao) {
         ) ?? 0,
         'taxa_inadimplencia' => 0,
 
-        // ESTATÍSTICAS POR FORMA DE PAGAMENTO
+        // ESTATÍSTICAS POR FORMA DE PAGAMENTO - via titulo_cartoes
         'credito_ok' => $db->fetchColumn(
-            "SELECT COUNT(*) FROM titulos
-             WHERE importacao_id = ? AND data_primeira_venda BETWEEN ? AND ?
-             AND (bandeira LIKE '%CREDITO%' OR bandeira LIKE '%CREDIT%')
-             AND status_inadimplencia = 'ADIMPLENTE' {$whereUsadoRelatorios}",
+            "SELECT COUNT(DISTINCT t.id) FROM titulos t
+             LEFT JOIN titulo_cartoes tc ON t.id = tc.titulo_id
+             WHERE t.importacao_id = ? AND t.data_primeira_venda BETWEEN ? AND ?
+             AND (tc.bandeira LIKE '%CREDITO%' OR tc.bandeira LIKE '%CREDIT%'
+                  OR tc.tipo_pagamento LIKE '%CREDITO%' OR tc.tipo_pagamento LIKE '%CREDIT%')
+             AND t.status_inadimplencia = 'ADIMPLENTE' {$whereUsadoRelatorios}",
             [$importacaoId, $dataInicio . ' 00:00:00', $dataFim . ' 23:59:59']
         ) ?? 0,
         'credito_1a_parcela' => $db->fetchColumn(
-            "SELECT COUNT(*) FROM titulos
-             WHERE importacao_id = ? AND data_primeira_venda BETWEEN ? AND ?
-             AND (bandeira LIKE '%CREDITO%' OR bandeira LIKE '%CREDIT%')
-             AND status_inadimplencia LIKE '%1ª parcela%' {$whereUsadoRelatorios}",
+            "SELECT COUNT(DISTINCT t.id) FROM titulos t
+             LEFT JOIN titulo_cartoes tc ON t.id = tc.titulo_id
+             WHERE t.importacao_id = ? AND t.data_primeira_venda BETWEEN ? AND ?
+             AND (tc.bandeira LIKE '%CREDITO%' OR tc.bandeira LIKE '%CREDIT%'
+                  OR tc.tipo_pagamento LIKE '%CREDITO%' OR tc.tipo_pagamento LIKE '%CREDIT%')
+             AND t.status_inadimplencia LIKE '%1ª parcela%' {$whereUsadoRelatorios}",
             [$importacaoId, $dataInicio . ' 00:00:00', $dataFim . ' 23:59:59']
         ) ?? 0,
         'debito_total' => $db->fetchColumn(
-            "SELECT COUNT(*) FROM titulos
-             WHERE importacao_id = ? AND data_primeira_venda BETWEEN ? AND ?
-             AND (bandeira LIKE '%DEBITO%' OR bandeira LIKE '%DEBIT%') {$whereUsadoRelatorios}",
+            "SELECT COUNT(DISTINCT t.id) FROM titulos t
+             LEFT JOIN titulo_cartoes tc ON t.id = tc.titulo_id
+             WHERE t.importacao_id = ? AND t.data_primeira_venda BETWEEN ? AND ?
+             AND (tc.bandeira LIKE '%DEBITO%' OR tc.bandeira LIKE '%DEBIT%'
+                  OR tc.tipo_pagamento LIKE '%DEBITO%' OR tc.tipo_pagamento LIKE '%DEBIT%') {$whereUsadoRelatorios}",
             [$importacaoId, $dataInicio . ' 00:00:00', $dataFim . ' 23:59:59']
         ) ?? 0,
         'pix_total' => $db->fetchColumn(
-            "SELECT COUNT(*) FROM titulos
-             WHERE importacao_id = ? AND data_primeira_venda BETWEEN ? AND ?
-             AND (bandeira LIKE '%PIX%' OR bandeira LIKE '%CARTEIRA%') {$whereUsadoRelatorios}",
+            "SELECT COUNT(DISTINCT t.id) FROM titulos t
+             LEFT JOIN titulo_cartoes tc ON t.id = tc.titulo_id
+             WHERE t.importacao_id = ? AND t.data_primeira_venda BETWEEN ? AND ?
+             AND (tc.bandeira LIKE '%PIX%' OR tc.bandeira LIKE '%CARTEIRA%'
+                  OR tc.tipo_pagamento LIKE '%PIX%' OR tc.tipo_pagamento LIKE '%CARTEIRA%') {$whereUsadoRelatorios}",
             [$importacaoId, $dataInicio . ' 00:00:00', $dataFim . ' 23:59:59']
         ) ?? 0,
         'outras_formas' => $db->fetchColumn(
-            "SELECT COUNT(*) FROM titulos
-             WHERE importacao_id = ? AND data_primeira_venda BETWEEN ? AND ?
-             AND bandeira NOT LIKE '%CREDITO%' AND bandeira NOT LIKE '%CREDIT%'
-             AND bandeira NOT LIKE '%DEBITO%' AND bandeira NOT LIKE '%DEBIT%'
-             AND bandeira NOT LIKE '%PIX%' AND bandeira NOT LIKE '%CARTEIRA%' {$whereUsadoRelatorios}",
+            "SELECT COUNT(DISTINCT t.id) FROM titulos t
+             LEFT JOIN titulo_cartoes tc ON t.id = tc.titulo_id
+             WHERE t.importacao_id = ? AND t.data_primeira_venda BETWEEN ? AND ?
+             AND (tc.bandeira IS NULL OR (
+                 tc.bandeira NOT LIKE '%CREDITO%' AND tc.bandeira NOT LIKE '%CREDIT%'
+                 AND tc.bandeira NOT LIKE '%DEBITO%' AND tc.bandeira NOT LIKE '%DEBIT%'
+                 AND tc.bandeira NOT LIKE '%PIX%' AND tc.bandeira NOT LIKE '%CARTEIRA%'))
+             AND (tc.tipo_pagamento IS NULL OR (
+                 tc.tipo_pagamento NOT LIKE '%CREDITO%' AND tc.tipo_pagamento NOT LIKE '%CREDIT%'
+                 AND tc.tipo_pagamento NOT LIKE '%DEBITO%' AND tc.tipo_pagamento NOT LIKE '%DEBIT%'
+                 AND tc.tipo_pagamento NOT LIKE '%PIX%' AND tc.tipo_pagamento NOT LIKE '%CARTEIRA%')) {$whereUsadoRelatorios}",
             [$importacaoId, $dataInicio . ' 00:00:00', $dataFim . ' 23:59:59']
         ) ?? 0
     ];
