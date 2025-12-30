@@ -766,7 +766,7 @@ class CSVImporter {
 
         $this->db->query($sql);
 
-        // Análise de Cartões
+        // Análise de Cartões - buscar de titulo_cartoes (nova tabela)
         $sql = "INSERT INTO analise_cartoes (
                     importacao_id, numero_cartao, bandeira, tipo_pagamento_cartao,
                     total_titulos_no_cartao, total_documentos_no_cartao, total_promotores_no_cartao,
@@ -776,37 +776,38 @@ class CSVImporter {
                 )
                 SELECT
                     {$this->importacaoId} as importacao_id,
-                    numero_cartao,
-                    MAX(bandeira) as bandeira,
-                    MAX(tipo_pagamento_cartao) as tipo_pagamento_cartao,
-                    COUNT(*) as total_titulos_no_cartao,
-                    COUNT(DISTINCT documento_titular) as total_documentos_no_cartao,
-                    COUNT(DISTINCT promotor) as total_promotores_no_cartao,
-                    SUM(CASE WHEN status_titulo = 'Ativo' THEN 1 ELSE 0 END) as titulos_ativos,
-                    SUM(CASE WHEN status_titulo = 'Bloqueado' THEN 1 ELSE 0 END) as titulos_bloqueados,
-                    SUM(CASE WHEN status_titulo = 'Cancelado' THEN 1 ELSE 0 END) as titulos_cancelados,
-                    SUM(CASE WHEN status_inadimplencia LIKE 'INADIMPLENTE%' THEN 1 ELSE 0 END) as titulos_inadimplentes,
-                    ROUND(SUM(CASE WHEN status_inadimplencia LIKE 'INADIMPLENTE%' THEN 1 ELSE 0 END) * 100.0 / COUNT(*), 2) as taxa_inadimplencia_cartao,
-                    MIN(data_primeira_venda) as primeira_venda_cartao,
-                    MAX(data_ultima_venda) as ultima_venda_cartao,
+                    tc.numero_cartao,
+                    MAX(tc.bandeira) as bandeira,
+                    MAX(tc.tipo_pagamento) as tipo_pagamento_cartao,
+                    COUNT(DISTINCT t.id) as total_titulos_no_cartao,
+                    COUNT(DISTINCT t.documento_titular) as total_documentos_no_cartao,
+                    COUNT(DISTINCT t.promotor) as total_promotores_no_cartao,
+                    SUM(CASE WHEN t.status_titulo = 'Ativo' THEN 1 ELSE 0 END) as titulos_ativos,
+                    SUM(CASE WHEN t.status_titulo = 'Bloqueado' THEN 1 ELSE 0 END) as titulos_bloqueados,
+                    SUM(CASE WHEN t.status_titulo = 'Cancelado' THEN 1 ELSE 0 END) as titulos_cancelados,
+                    SUM(CASE WHEN t.status_inadimplencia LIKE 'INADIMPLENTE%' THEN 1 ELSE 0 END) as titulos_inadimplentes,
+                    ROUND(SUM(CASE WHEN t.status_inadimplencia LIKE 'INADIMPLENTE%' THEN 1 ELSE 0 END) * 100.0 / COUNT(DISTINCT t.id), 2) as taxa_inadimplencia_cartao,
+                    MIN(t.data_primeira_venda) as primeira_venda_cartao,
+                    MAX(t.data_ultima_venda) as ultima_venda_cartao,
                     CASE
-                        WHEN COUNT(DISTINCT documento_titular) >= 10
-                             AND SUM(CASE WHEN status_inadimplencia LIKE 'INADIMPLENTE%' THEN 1 ELSE 0 END) * 100.0 / COUNT(*) >= 30
+                        WHEN COUNT(DISTINCT t.documento_titular) >= 10
+                             AND SUM(CASE WHEN t.status_inadimplencia LIKE 'INADIMPLENTE%' THEN 1 ELSE 0 END) * 100.0 / COUNT(DISTINCT t.id) >= 30
                         THEN 'FRAUDE PROVÁVEL'
-                        WHEN COUNT(DISTINCT documento_titular) >= 10
-                             OR SUM(CASE WHEN status_titulo IN ('Bloqueado', 'Cancelado') THEN 1 ELSE 0 END) * 100.0 / COUNT(*) >= 40
+                        WHEN COUNT(DISTINCT t.documento_titular) >= 10
+                             OR SUM(CASE WHEN t.status_titulo IN ('Bloqueado', 'Cancelado') THEN 1 ELSE 0 END) * 100.0 / COUNT(DISTINCT t.id) >= 40
                         THEN 'ALTO RISCO'
-                        WHEN COUNT(DISTINCT documento_titular) >= 5
-                             OR SUM(CASE WHEN status_titulo IN ('Bloqueado', 'Cancelado') THEN 1 ELSE 0 END) * 100.0 / COUNT(*) >= 25
+                        WHEN COUNT(DISTINCT t.documento_titular) >= 5
+                             OR SUM(CASE WHEN t.status_titulo IN ('Bloqueado', 'Cancelado') THEN 1 ELSE 0 END) * 100.0 / COUNT(DISTINCT t.id) >= 25
                         THEN 'MÉDIO RISCO'
                         ELSE 'BAIXO RISCO'
                     END as nivel_risco
-                FROM titulos
-                WHERE importacao_id = {$this->importacaoId}
-                  AND numero_cartao IS NOT NULL
-                  AND numero_cartao != ''
-                GROUP BY numero_cartao
-                HAVING COUNT(*) >= 2";
+                FROM titulo_cartoes tc
+                INNER JOIN titulos t ON tc.titulo_id = t.id
+                WHERE t.importacao_id = {$this->importacaoId}
+                  AND tc.numero_cartao IS NOT NULL
+                  AND tc.numero_cartao != ''
+                GROUP BY tc.numero_cartao
+                HAVING COUNT(DISTINCT t.id) >= 2";
 
         $this->db->query($sql);
     }

@@ -2541,6 +2541,18 @@ endif;
             const btn = document.getElementById('btnGerarPDF');
             const originalHTML = btn.innerHTML;
 
+            // Perguntar ao usuário qual tipo de planilha deseja
+            const escolha = confirm(
+                '📊 Escolha o tipo de planilha:\n\n' +
+                '✅ OK = Planilha de AUDITORIA (todos os títulos que requerem atenção)\n' +
+                '   • Inadimplentes\n' +
+                '   • Pagamentos em Débito/PIX\n' +
+                '   • Sem cartão cadastrado\n\n' +
+                '❌ CANCELAR = Planilha PADRÃO (primeiros 50 títulos apenas)'
+            );
+
+            const tipoPlanilha = escolha ? 'auditoria' : 'padrao';
+
             // Verificar se há token do usuário disponível
             const tokenUsuario = <?php echo $tokenUsuario ? "'" . $tokenUsuario['token'] . "'" : 'null'; ?>;
 
@@ -2564,7 +2576,8 @@ endif;
                 // Coletar filtros atuais
                 const body = {
                     data_inicio: document.getElementById('dataInicio').value,
-                    data_fim: document.getElementById('dataFim').value
+                    data_fim: document.getElementById('dataFim').value,
+                    tipo_planilha: tipoPlanilha
                 };
 
                 // Adicionar outros filtros se estiverem preenchidos

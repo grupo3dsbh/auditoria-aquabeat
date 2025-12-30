@@ -98,6 +98,7 @@ $dataInicio = $input['data_inicio'] ?? null;
 $dataFim = $input['data_fim'] ?? null;
 $promotorFiltro = $input['promotor'] ?? null;
 $statusInadimplencia = $input['status_inadimplencia'] ?? null;
+$tipoPlanilha = $input['tipo_planilha'] ?? 'padrao'; // 'padrao' (50 títulos) ou 'auditoria' (todos que requerem atenção)
 
 // Validar datas
 if (!$dataInicio || !$dataFim) {
@@ -135,8 +136,16 @@ if ($statusInadimplencia) {
     $params[] = $statusInadimplencia;
 }
 
-// Buscar todos os títulos
-$sql = "SELECT * FROM titulos WHERE " . implode(' AND ', $where) . " ORDER BY data_primeira_venda DESC";
+// Buscar todos os títulos com cartões
+$sql = "SELECT t.*,
+        GROUP_CONCAT(tc.numero_cartao ORDER BY tc.ordem_uso SEPARATOR ' | ') as cartoes_lista,
+        GROUP_CONCAT(tc.bandeira ORDER BY tc.ordem_uso SEPARATOR ' | ') as bandeiras_lista,
+        MAX(tc.tipo_pagamento) as tipo_cartao
+        FROM titulos t
+        LEFT JOIN titulo_cartoes tc ON t.id = tc.titulo_id
+        WHERE " . implode(' AND ', $where) . "
+        GROUP BY t.id
+        ORDER BY t.data_primeira_venda DESC";
 $titulos = $db->fetchAll($sql, $params);
 
 // Calcular estatísticas
@@ -219,7 +228,8 @@ $html = gerarHTMLRelatorio($titulos, [
     'analise_ia' => $analiseIA,
     'data_inicio' => $dataInicio,
     'data_fim' => $dataFim,
-    'usuario_nome' => $tokenData['usuario_nome']
+    'usuario_nome' => $tokenData['usuario_nome'],
+    'tipo_planilha' => $tipoPlanilha
 ]);
 
 // Retornar resposta
@@ -260,8 +270,39 @@ function gerarHTMLRelatorio($titulos, $dados) {
     $baseUrl = $scheme . '://' . $_SERVER['HTTP_HOST'];
     $data = date('d/m/Y H:i');
 
-    // Limitar a 50 primeiros títulos para preview
-    $titulosPreview = array_slice($titulos, 0, 50);
+    // Filtrar títulos de acordo com o tipo de planilha
+    $tipoPlanilha = $dados['tipo_planilha'] ?? 'padrao';
+
+    if ($tipoPlanilha === 'auditoria') {
+        // Planilha de Auditoria: Mostrar TODOS os títulos que requerem atenção
+        $titulosPreview = array_filter($titulos, function($titulo) {
+            // Inadimplentes
+            $isInadimplente = strpos($titulo['status_inadimplencia'], 'INADIMPLENTE') !== false;
+
+            // Pagamentos com débito ou PIX
+            $formaPagamento = strtolower($titulo['forma_pagamento'] ?? '');
+            $tipoPagamento = strtolower($titulo['tipo_pagamento'] ?? '');
+            $tipoCartao = strtolower($titulo['tipo_cartao'] ?? '');
+
+            $ehDebito = (strpos($formaPagamento, 'débito') !== false ||
+                        strpos($tipoPagamento, 'débito') !== false ||
+                        strpos($tipoCartao, 'débito') !== false ||
+                        strpos($tipoCartao, 'debit') !== false);
+
+            $ehPIX = (strpos($formaPagamento, 'pix') !== false ||
+                     strpos($formaPagamento, 'carteira') !== false);
+
+            // Sem cartão
+            $semCartao = empty($titulo['cartoes_lista']);
+
+            // Retorna TRUE se requer atenção
+            return $isInadimplente || $ehDebito || $ehPIX || $semCartao;
+        });
+        $titulosPreview = array_values($titulosPreview); // Reindexar
+    } else {
+        // Planilha Padrão: Limitar a 50 primeiros títulos
+        $titulosPreview = array_slice($titulos, 0, 50);
+    }
 
     ob_start();
     ?>
@@ -370,6 +411,11 @@ function gerarHTMLRelatorio($titulos, $dados) {
             .badge-danger { background: #dc3545; color: white; }
             .badge-success { background: #28a745; color: white; }
             .badge-warning { background: #ffc107; color: #000; }
+
+            .alerta-pagamento {
+                background-color: #fff3cd !important;
+                border-left: 3px solid #ff9800;
+            }
 
             a { color: #007bff; text-decoration: none; }
             a:hover { text-decoration: underline; }
@@ -498,14 +544,22 @@ function gerarHTMLRelatorio($titulos, $dados) {
         </table>
         <?php endif; ?>
 
-        <h2>📋 Preview dos Resultados (Primeiros 50)</h2>
-        <p class="text-muted"><em>Mostrando <?php echo count($titulosPreview); ?> de <?php echo $dados['total_titulos']; ?> títulos</em></p>
+        <h2>📋 <?php echo $tipoPlanilha === 'auditoria' ? 'Planilha de Auditoria (Títulos que Requerem Atenção)' : 'Preview dos Resultados (Primeiros 50)'; ?></h2>
+        <p class="text-muted">
+            <em>Mostrando <?php echo count($titulosPreview); ?> de <?php echo $dados['total_titulos']; ?> títulos</em>
+            <?php if ($tipoPlanilha === 'auditoria'): ?>
+                <br><strong>Critérios de atenção:</strong> Inadimplentes, Pagamentos em Débito/PIX ou Sem Cartão
+            <?php endif; ?>
+        </p>
         <table>
             <thead>
                 <tr>
                     <th>Título</th>
                     <th>Titular</th>
+                    <th>Data Venda</th>
                     <th>Promotor</th>
+                    <th>Forma Pgto</th>
+                    <th>Cartões</th>
                     <th>Status</th>
                     <th>Parcelas</th>
                     <th>Valor Pago</th>
@@ -514,13 +568,59 @@ function gerarHTMLRelatorio($titulos, $dados) {
             </thead>
             <tbody>
                 <?php foreach ($titulosPreview as $titulo): ?>
-                <tr>
+                <?php
+                // Detectar se NÃO é cartão de crédito (requer atenção)
+                $formaPagamento = strtolower($titulo['forma_pagamento'] ?? '');
+                $tipoPagamento = strtolower($titulo['tipo_pagamento'] ?? '');
+                $tipoCartao = strtolower($titulo['tipo_cartao'] ?? '');
+                $temCartao = !empty($titulo['cartoes_lista']);
+
+                $ehDebito = (strpos($formaPagamento, 'débito') !== false ||
+                            strpos($tipoPagamento, 'débito') !== false ||
+                            strpos($tipoCartao, 'débito') !== false ||
+                            strpos($tipoCartao, 'debit') !== false);
+
+                $ehPIX = (strpos($formaPagamento, 'pix') !== false ||
+                         strpos($formaPagamento, 'carteira') !== false);
+
+                $classeLinha = ($ehDebito || $ehPIX) ? 'class="alerta-pagamento"' : '';
+                ?>
+                <tr <?php echo $classeLinha; ?>>
                     <td><?php echo htmlspecialchars($titulo['numero_titulo']); ?></td>
                     <td><?php echo htmlspecialchars($titulo['nome_titular']); ?></td>
+                    <td><?php echo $titulo['data_primeira_venda'] ? date('d/m/Y', strtotime($titulo['data_primeira_venda'])) : '-'; ?></td>
                     <td>
                         <a href="<?php echo $baseUrl; ?>/relatorios.php?promotor=<?php echo urlencode($titulo['promotor']); ?>" target="_blank">
                             <?php echo htmlspecialchars($titulo['promotor']); ?>
                         </a>
+                    </td>
+                    <td>
+                        <?php
+                        if ($ehDebito) {
+                            echo '<span class="badge badge-warning">⚠️ DÉBITO</span>';
+                        } elseif ($ehPIX) {
+                            echo '<span class="badge badge-warning">⚠️ PIX/Carteira</span>';
+                        } else {
+                            echo htmlspecialchars($titulo['forma_pagamento'] ?: $titulo['tipo_pagamento'] ?: '-');
+                        }
+                        ?>
+                    </td>
+                    <td>
+                        <?php
+                        if ($temCartao) {
+                            $cartoes = explode(' | ', $titulo['cartoes_lista']);
+                            $bandeiras = explode(' | ', $titulo['bandeiras_lista'] ?? '');
+                            echo '<small>';
+                            foreach ($cartoes as $i => $cartao) {
+                                $bandeira = $bandeiras[$i] ?? '';
+                                echo htmlspecialchars(substr($cartao, -4)) . ($bandeira ? " ($bandeira)" : '');
+                                if ($i < count($cartoes) - 1) echo '<br>';
+                            }
+                            echo '</small>';
+                        } else {
+                            echo '<span class="badge badge-warning">⚠️ Sem cartão</span>';
+                        }
+                        ?>
                     </td>
                     <td>
                         <?php
