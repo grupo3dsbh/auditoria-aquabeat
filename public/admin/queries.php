@@ -12,16 +12,81 @@ $queryFile = null;
 // Diretório de queries
 $queriesDir = APP_ROOT . '/database';
 
-// Lista de queries disponíveis
-$availableQueries = [
-    'query_exportacao_completa_filtrada.sql' => '🎯 Query FILTRADA - Remove Consumos/Pulseiras (USAR ESTA! MAIS RECENTE)',
-    'query_dados_venda_COMPLETA.sql' => '⚠️ Query COMPLETA - Com Histórico de Todos os Cartões (ANTIGA - NÃO FILTRA CONSUMOS)',
-    'query_exportacao_corrigida_final.sql' => '✅ Query com Filtros - Versão Anterior',
-    'query_dados_venda.sql' => 'Query de Exportação de Dados (Sem Status)',
-    'query_com_cabecalho_CORRIGIDA.sql' => 'Query com Cabeçalho (Antiga - Com Status)',
-    'query_com_cabecalho.sql' => 'Query Original com Cabeçalho',
-    'schema.sql' => 'Schema do Banco de Dados'
-];
+// Função para gerar descrição baseada no nome do arquivo
+function getQueryDescription($filename) {
+    $descriptions = [
+        'query_exportacao_completa_filtrada.sql' => '🎯 Query FILTRADA - Remove Consumos/Pulseiras (USAR ESTA! MAIS RECENTE)',
+        'query_dados_venda_COMPLETA.sql' => '⚠️ Query COMPLETA - Com Histórico de Todos os Cartões (ANTIGA - NÃO FILTRA CONSUMOS)',
+        'query_exportacao_corrigida_final.sql' => '✅ Query com Filtros - Versão Anterior',
+        'query_dados_venda.sql' => 'Query de Exportação de Dados (Sem Status)',
+        'query_com_cabecalho_CORRIGIDA.sql' => 'Query com Cabeçalho (Antiga - Com Status)',
+        'query_com_cabecalho.sql' => 'Query Original com Cabeçalho',
+        'schema.sql' => 'Schema do Banco de Dados'
+    ];
+
+    if (isset($descriptions[$filename])) {
+        return $descriptions[$filename];
+    }
+
+    // Gerar descrição automática baseada no nome do arquivo
+    $name = str_replace(['.sql', '_', '-'], [' ', ' ', ' '], $filename);
+    return ucwords($name);
+}
+
+// Função para determinar prioridade de exibição
+function getQueryPriority($filename) {
+    // Prioridade 1: Query mais recente e recomendada
+    if ($filename === 'query_exportacao_completa_filtrada.sql') {
+        return 1;
+    }
+
+    // Prioridade 2: Queries filtradas
+    if (stripos($filename, 'filtrada') !== false) {
+        return 2;
+    }
+
+    // Prioridade 3: Queries completas ou corrigidas
+    if (stripos($filename, 'COMPLETA') !== false || stripos($filename, 'corrigida') !== false) {
+        return 3;
+    }
+
+    // Prioridade 4: Schema
+    if ($filename === 'schema.sql') {
+        return 99;
+    }
+
+    // Prioridade 5: Demais queries
+    return 50;
+}
+
+// Buscar todos os arquivos .sql no diretório
+$sqlFiles = glob($queriesDir . '/*.sql');
+$availableQueries = [];
+
+if ($sqlFiles) {
+    // Criar array associativo com nome do arquivo => descrição
+    foreach ($sqlFiles as $filePath) {
+        $filename = basename($filePath);
+        $availableQueries[$filename] = getQueryDescription($filename);
+    }
+
+    // Ordenar por prioridade
+    uksort($availableQueries, function($a, $b) {
+        $priorityA = getQueryPriority($a);
+        $priorityB = getQueryPriority($b);
+
+        if ($priorityA !== $priorityB) {
+            return $priorityA - $priorityB;
+        }
+
+        // Se mesma prioridade, ordenar alfabeticamente
+        return strcmp($a, $b);
+    });
+} else {
+    $availableQueries = [
+        'schema.sql' => 'Schema do Banco de Dados'
+    ];
+}
 
 // Processar visualização
 if (isset($_GET['view'])) {

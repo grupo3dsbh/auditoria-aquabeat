@@ -99,10 +99,11 @@ SELECT
     -- ====================================================================
     MAX(pt.QuantidadeParcelasVenda) AS QuantidadeParcelasVenda,
 
-    -- Quantidade de parcelas pagas - FILTRANDO consumos e pulseiras
+    -- Quantidade de parcelas pagas - FILTRANDO consumos, pulseiras E diferenças
+    -- Diferença NÃO é parcela, é ajuste de valor quando muda de vaga
     SUM(CASE
         WHEN COALESCE(pt.ValorPago, pt.Total) IS NOT NULL
-         AND (pt.NomeProduto LIKE '%Sócio%' OR pt.NomeProduto LIKE '%Diferença%')
+         AND pt.NomeProduto LIKE '%Sócio%'
          AND pt.NomeProduto NOT LIKE '%Consumo%'
          AND pt.NomeProduto NOT LIKE '%Pulseira%Troca%'
         THEN 1
@@ -113,10 +114,10 @@ SELECT
     -- ✅ VALORES - FILTRADOS (SÓ SOMA PARCELAS DO PLANO)
     -- ====================================================================
 
-    -- Valor da parcela (pega o primeiro valor válido de parcela do plano)
+    -- Valor da parcela (pega o valor da parcela Sócio, NÃO da Diferença)
     MAX(CASE
         WHEN COALESCE(pt.ValorPago, pt.Total) IS NOT NULL
-         AND (pt.NomeProduto LIKE '%Sócio%' OR pt.NomeProduto LIKE '%Diferença%')
+         AND pt.NomeProduto LIKE '%Sócio%'
          AND pt.NomeProduto NOT LIKE '%Consumo%'
          AND pt.NomeProduto NOT LIKE '%Pulseira%Troca%'
         THEN COALESCE(pt.ValorPago, pt.Total)
@@ -132,18 +133,18 @@ SELECT
         ELSE 0
     END) AS TotalPago,
 
-    -- Saldo Restante (calculado com valores filtrados)
+    -- Saldo Restante (calculado com valores filtrados - conta Diferença no valor mas não na quantidade)
     CASE
         WHEN MAX(pt.QuantidadeParcelasVenda) = 1 THEN 0
         WHEN SUM(CASE
             WHEN COALESCE(pt.ValorPago, pt.Total) IS NOT NULL
-             AND (pt.NomeProduto LIKE '%Sócio%' OR pt.NomeProduto LIKE '%Diferença%')
+             AND pt.NomeProduto LIKE '%Sócio%'
              AND pt.NomeProduto NOT LIKE '%Consumo%'
              AND pt.NomeProduto NOT LIKE '%Pulseira%Troca%'
             THEN 1 ELSE 0 END) = MAX(pt.QuantidadeParcelasVenda) THEN 0
         ELSE (MAX(CASE
                 WHEN COALESCE(pt.ValorPago, pt.Total) IS NOT NULL
-                 AND (pt.NomeProduto LIKE '%Sócio%' OR pt.NomeProduto LIKE '%Diferença%')
+                 AND pt.NomeProduto LIKE '%Sócio%'
                  AND pt.NomeProduto NOT LIKE '%Consumo%'
                  AND pt.NomeProduto NOT LIKE '%Pulseira%Troca%'
                 THEN COALESCE(pt.ValorPago, pt.Total)
@@ -158,18 +159,18 @@ SELECT
             END)
     END AS SaldoRestante,
 
-    -- Parcelas Restantes (calculado com parcelas filtradas)
+    -- Parcelas Restantes (calculado com parcelas filtradas - NÃO conta Diferença)
     CASE
         WHEN MAX(pt.QuantidadeParcelasVenda) = 1 THEN 0
         WHEN SUM(CASE
             WHEN COALESCE(pt.ValorPago, pt.Total) IS NOT NULL
-             AND (pt.NomeProduto LIKE '%Sócio%' OR pt.NomeProduto LIKE '%Diferença%')
+             AND pt.NomeProduto LIKE '%Sócio%'
              AND pt.NomeProduto NOT LIKE '%Consumo%'
              AND pt.NomeProduto NOT LIKE '%Pulseira%Troca%'
             THEN 1 ELSE 0 END) = MAX(pt.QuantidadeParcelasVenda) THEN 0
         ELSE MAX(pt.QuantidadeParcelasVenda) - SUM(CASE
             WHEN COALESCE(pt.ValorPago, pt.Total) IS NOT NULL
-             AND (pt.NomeProduto LIKE '%Sócio%' OR pt.NomeProduto LIKE '%Diferença%')
+             AND pt.NomeProduto LIKE '%Sócio%'
              AND pt.NomeProduto NOT LIKE '%Consumo%'
              AND pt.NomeProduto NOT LIKE '%Pulseira%Troca%'
             THEN 1 ELSE 0 END)
@@ -187,7 +188,7 @@ SELECT
         WHEN MAX(pt.QuantidadeParcelasVenda) = 1 THEN 'À Vista'
         WHEN SUM(CASE
             WHEN COALESCE(pt.ValorPago, pt.Total) IS NOT NULL
-             AND (pt.NomeProduto LIKE '%Sócio%' OR pt.NomeProduto LIKE '%Diferença%')
+             AND pt.NomeProduto LIKE '%Sócio%'
              AND pt.NomeProduto NOT LIKE '%Consumo%'
              AND pt.NomeProduto NOT LIKE '%Pulseira%Troca%'
             THEN 1 ELSE 0 END) = MAX(pt.QuantidadeParcelasVenda) THEN 'Cartão Parcelado'
@@ -277,4 +278,20 @@ ListaValoresPagos: "120.52"
 - 3x "Pulseira Troca"
 
 ✅ Valor correto: R$ 120,52 (ao invés de R$ 750,52)
+
+================================================================================
+RESULTADO ESPERADO PARA SFA-10152 (COM DIFERENÇA DE MENSALIDADE):
+================================================================================
+
+QtdParcelasPagas: 1 (NÃO conta a Diferença como parcela adicional!)
+TotalPago: 265.06 (181.06 + 84.00 - soma AMBOS os valores pagos)
+ListaParcelasPagas: "Sócio Safira Título - 6 Vagas | Diferença Mensalidade"
+ListaValoresPagos: "181.06 | 84.00"
+AlterouVagas: Sim
+ValorParcela: 181.06 (valor da parcela Sócio, não da Diferença)
+
+✅ IMPORTANTE:
+- Diferença de Mensalidade NÃO é contada como parcela separada (seria 2, mas fica 1)
+- Diferença de Mensalidade É somada no TotalPago (ajuste de valor quando muda vagas)
+- Diferença de Mensalidade APARECE nas listas para transparência
 */
