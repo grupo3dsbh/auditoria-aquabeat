@@ -204,6 +204,36 @@ if (!empty($_GET['cpf_duplicado']) && $_GET['cpf_duplicado'] == '1') {
     $filtros['cpf_duplicado'] = '1';
 }
 
+// Filtro por cartões usados em múltiplos títulos
+if (!empty($_GET['cartao_multiplo']) && $_GET['cartao_multiplo'] == '1') {
+    $where[] = "id IN (
+        SELECT t.id
+        FROM titulos t
+        INNER JOIN titulo_cartoes tc ON tc.titulo_id = t.id
+        WHERE tc.numero_cartao IN (
+            SELECT numero_cartao
+            FROM titulo_cartoes
+            GROUP BY numero_cartao
+            HAVING COUNT(DISTINCT titulo_id) > 1
+        )
+    )";
+    $filtros['cartao_multiplo'] = '1';
+}
+
+// Filtro por apenas cartão de débito
+if (!empty($_GET['apenas_debito']) && $_GET['apenas_debito'] == '1') {
+    $where[] = "id IN (
+        SELECT t.id
+        FROM titulos t
+        INNER JOIN titulo_cartoes tc ON tc.titulo_id = t.id
+        WHERE tc.bandeira LIKE '%DEBITO%'
+           OR tc.bandeira LIKE '%DEBIT%'
+           OR tc.tipo_pagamento LIKE '%DEBITO%'
+           OR tc.tipo_pagamento LIKE '%DEBIT%'
+    )";
+    $filtros['apenas_debito'] = '1';
+}
+
 // Ordenação
 // Se filtro CPF duplicado estiver ativo, ordenar por documento_titular automaticamente
 if (!empty($_GET['cpf_duplicado']) && $_GET['cpf_duplicado'] == '1') {
@@ -2115,6 +2145,22 @@ endif;
                         <select name="cpf_duplicado" class="form-select">
                             <option value="">Todos</option>
                             <option value="1" <?php echo ($filtros['cpf_duplicado'] ?? '') == '1' ? 'selected' : ''; ?>>Apenas CPFs com múltiplas cotas</option>
+                        </select>
+                    </div>
+
+                    <div class="col-md-3">
+                        <label class="form-label">Cartões Múltiplos</label>
+                        <select name="cartao_multiplo" class="form-select">
+                            <option value="">Todos</option>
+                            <option value="1" <?php echo ($filtros['cartao_multiplo'] ?? '') == '1' ? 'selected' : ''; ?>>Apenas cartões usados 2+ vezes</option>
+                        </select>
+                    </div>
+
+                    <div class="col-md-3">
+                        <label class="form-label">Tipo de Cartão</label>
+                        <select name="apenas_debito" class="form-select">
+                            <option value="">Todos</option>
+                            <option value="1" <?php echo ($filtros['apenas_debito'] ?? '') == '1' ? 'selected' : ''; ?>>Apenas Débito (alto risco)</option>
                         </select>
                     </div>
 
