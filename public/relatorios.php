@@ -258,8 +258,23 @@ $contadores = [
     ", $params)
 ];
 
-// Buscar registros
-$sql = "SELECT * FROM titulos
+// Buscar registros COM DADOS DO CARTÃO
+$sql = "SELECT t.*,
+        (SELECT tc.numero_cartao FROM titulo_cartoes tc WHERE tc.titulo_id = t.id LIMIT 1) as numero_cartao_usado,
+        (SELECT tc.bandeira FROM titulo_cartoes tc WHERE tc.titulo_id = t.id LIMIT 1) as bandeira_cartao,
+        (SELECT tc.tipo_pagamento FROM titulo_cartoes tc WHERE tc.titulo_id = t.id LIMIT 1) as tipo_pagamento_cartao,
+        CASE
+            WHEN (SELECT tc.bandeira FROM titulo_cartoes tc WHERE tc.titulo_id = t.id LIMIT 1) LIKE '%DEBITO%' THEN 'DÉBITO'
+            WHEN (SELECT tc.bandeira FROM titulo_cartoes tc WHERE tc.titulo_id = t.id LIMIT 1) LIKE '%DEBIT%' THEN 'DÉBITO'
+            WHEN (SELECT tc.tipo_pagamento FROM titulo_cartoes tc WHERE tc.titulo_id = t.id LIMIT 1) LIKE '%DEBITO%' THEN 'DÉBITO'
+            WHEN (SELECT tc.tipo_pagamento FROM titulo_cartoes tc WHERE tc.titulo_id = t.id LIMIT 1) LIKE '%DEBIT%' THEN 'DÉBITO'
+            WHEN (SELECT tc.bandeira FROM titulo_cartoes tc WHERE tc.titulo_id = t.id LIMIT 1) LIKE '%CREDITO%' THEN 'CRÉDITO'
+            WHEN (SELECT tc.bandeira FROM titulo_cartoes tc WHERE tc.titulo_id = t.id LIMIT 1) LIKE '%CREDIT%' THEN 'CRÉDITO'
+            WHEN (SELECT tc.tipo_pagamento FROM titulo_cartoes tc WHERE tc.titulo_id = t.id LIMIT 1) LIKE '%CREDITO%' THEN 'CRÉDITO'
+            WHEN (SELECT tc.tipo_pagamento FROM titulo_cartoes tc WHERE tc.titulo_id = t.id LIMIT 1) LIKE '%CREDIT%' THEN 'CRÉDITO'
+            ELSE 'OUTRO'
+        END as tipo_cartao
+        FROM titulos t
         WHERE " . implode(' AND ', $where) . "
         ORDER BY {$orderBy} {$orderDir}
         LIMIT ? OFFSET ?";
@@ -660,6 +675,7 @@ $cartoesDestaque = $db->fetchAll("
         COUNT(DISTINCT t.id) as total_titulos,
         COUNT(DISTINCT t.documento_titular) as total_cpfs,
         COUNT(DISTINCT t.promotor) as total_promotores,
+        GROUP_CONCAT(DISTINCT t.promotor ORDER BY t.promotor SEPARATOR ' | ') as nomes_promotores,
         SUM(CASE WHEN t.status_inadimplencia LIKE 'INADIMPLENTE%' THEN 1 ELSE 0 END) as inadimplentes,
         SUM(CASE WHEN t.status_titulo IN ('Bloqueado', 'Cancelado') THEN 1 ELSE 0 END) as bloqueados,
         -- Detectar se é DÉBITO (alto risco)
@@ -2245,7 +2261,13 @@ endif;
                                         </span>
                                     </td>
                                     <td class="text-center">
-                                        <span class="badge bg-secondary"><?php echo $cartao['total_promotores']; ?></span>
+                                        <span class="badge bg-secondary"
+                                              data-bs-toggle="tooltip"
+                                              data-bs-placement="top"
+                                              data-bs-html="true"
+                                              title="<?php echo sanitize($cartao['nomes_promotores']); ?>">
+                                            <?php echo $cartao['total_promotores']; ?>
+                                        </span>
                                     </td>
                                     <td class="text-center">
                                         <?php if ($cartao['inadimplentes'] > 0): ?>
@@ -2327,6 +2349,7 @@ endif;
                                 <th>Título</th>
                                 <th>Titular</th>
                                 <th>Promotor</th>
+                                <th>Cartão</th>
                                 <th>Data Venda</th>
                                 <th>Status</th>
                                 <th>Inadimplência</th>
@@ -2416,6 +2439,18 @@ endif;
                                         </small>
                                     </td>
                                     <td><small><?php echo sanitize($titulo['promotor']); ?></small></td>
+                                    <td>
+                                        <?php if (!empty($titulo['numero_cartao_usado'])): ?>
+                                            <small><?php echo sanitize(substr($titulo['numero_cartao_usado'], -4)); ?></small>
+                                            <?php if ($titulo['tipo_cartao'] == 'DÉBITO'): ?>
+                                                <span class="badge bg-danger">D</span>
+                                            <?php elseif ($titulo['tipo_cartao'] == 'CRÉDITO'): ?>
+                                                <span class="badge bg-success">C</span>
+                                            <?php endif; ?>
+                                        <?php else: ?>
+                                            <small class="text-muted">-</small>
+                                        <?php endif; ?>
+                                    </td>
                                     <td><small><?php echo formatDate($titulo['data_primeira_venda']); ?></small></td>
                                     <td>
                                         <span class="badge bg-<?php echo getStatusBadgeClass($titulo['status_titulo']); ?>">
@@ -2996,6 +3031,14 @@ endif;
                         `<div class="alert alert-danger">Erro ao carregar títulos: ${error.message}</div>`;
                 });
         }
+
+        // Inicializar tooltips do Bootstrap
+        document.addEventListener('DOMContentLoaded', function() {
+            const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+            tooltipTriggerList.map(function (tooltipTriggerEl) {
+                return new bootstrap.Tooltip(tooltipTriggerEl);
+            });
+        });
     </script>
 </body>
 </html>
