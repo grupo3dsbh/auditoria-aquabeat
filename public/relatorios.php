@@ -649,6 +649,44 @@ if ($adimplentes && $adimplentes['total'] > 0) {
     $inadimplenciaPorTipo[] = $adimplentes;
 }
 
+// ====================================================================
+// CARTÕES EM DESTAQUE - Cartões usados múltiplas vezes
+// ====================================================================
+$cartoesDestaque = $db->fetchAll("
+    SELECT
+        tc.numero_cartao,
+        GROUP_CONCAT(DISTINCT tc.bandeira ORDER BY tc.bandeira SEPARATOR ', ') as bandeiras,
+        GROUP_CONCAT(DISTINCT tc.tipo_pagamento ORDER BY tc.tipo_pagamento SEPARATOR ', ') as tipos_pagamento,
+        COUNT(DISTINCT t.id) as total_titulos,
+        COUNT(DISTINCT t.documento_titular) as total_cpfs,
+        COUNT(DISTINCT t.promotor) as total_promotores,
+        SUM(CASE WHEN t.status_inadimplencia LIKE 'INADIMPLENTE%' THEN 1 ELSE 0 END) as inadimplentes,
+        SUM(CASE WHEN t.status_titulo IN ('Bloqueado', 'Cancelado') THEN 1 ELSE 0 END) as bloqueados,
+        -- Detectar se é DÉBITO (alto risco)
+        CASE
+            WHEN MAX(CASE WHEN tc.bandeira LIKE '%DEBITO%' OR tc.bandeira LIKE '%DEBIT%' THEN 1 ELSE 0 END) = 1 THEN 1
+            WHEN MAX(CASE WHEN tc.tipo_pagamento LIKE '%DEBITO%' OR tc.tipo_pagamento LIKE '%DEBIT%' THEN 1 ELSE 0 END) = 1 THEN 1
+            ELSE 0
+        END as eh_debito,
+        ROUND(100.0 * SUM(CASE WHEN t.status_inadimplencia LIKE 'INADIMPLENTE%' THEN 1 ELSE 0 END) / COUNT(DISTINCT t.id), 1) as taxa_inadimplencia
+    FROM titulo_cartoes tc
+    INNER JOIN titulos t ON tc.titulo_id = t.id
+    WHERE tc.numero_cartao IS NOT NULL
+      AND tc.numero_cartao != ''
+      AND tc.numero_cartao != 'NULL'
+      AND t.importacao_id = ?
+      AND t.data_primeira_venda >= ?
+      AND t.data_primeira_venda <= ?
+      " . (isset($where[3]) ? "AND " . $where[3] : "") . "
+    GROUP BY tc.numero_cartao
+    HAVING COUNT(DISTINCT t.id) >= 2
+    ORDER BY
+        eh_debito DESC,
+        COUNT(DISTINCT t.documento_titular) DESC,
+        COUNT(DISTINCT t.id) DESC
+    LIMIT 20
+", [$importacaoId, $dataInicio . ' 00:00:00', $dataFim . ' 23:59:59']);
+
 // Ranking de consultores com mais inadimplência
 $rankingConsultores = $db->fetchAll("
     SELECT
@@ -2153,6 +2191,98 @@ endif;
             </div>
         </div>
 
+        <!-- ============================================== -->
+        <!-- CARTÕES EM DESTAQUE -->
+        <!-- ============================================== -->
+        <?php if (!empty($cartoesDestaque)): ?>
+        <div class="card border-warning mt-4">
+            <div class="card-header bg-warning d-flex justify-content-between align-items-center">
+                <h6 class="mb-0"><i class="bi bi-credit-card-2-front"></i> Cartões em Destaque - Usados Múltiplas Vezes</h6>
+                <a href="?view=cartoes&data_inicio=<?php echo $dataInicio; ?>&data_fim=<?php echo $dataFim; ?>" class="btn btn-sm btn-dark">
+                    <i class="bi bi-box-arrow-up-right"></i> Ver Todos
+                </a>
+            </div>
+            <div class="card-body">
+                <p class="text-muted small mb-3">
+                    <i class="bi bi-info-circle"></i> Cartões usados em <strong>2 ou mais títulos</strong>.
+                    Cartões de <span class="badge bg-danger">DÉBITO</span> e com <strong>múltiplos CPFs</strong> indicam possível risco.
+                </p>
+
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover">
+                        <thead class="table-dark">
+                            <tr>
+                                <th>Cartão</th>
+                                <th>Bandeira</th>
+                                <th class="text-center">Títulos</th>
+                                <th class="text-center">CPFs</th>
+                                <th class="text-center">Promotores</th>
+                                <th class="text-center">Inadimp.</th>
+                                <th class="text-center">Bloq.</th>
+                                <th class="text-center">Taxa</th>
+                                <th class="text-center">Ação</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php foreach ($cartoesDestaque as $cartao): ?>
+                                <tr class="<?php echo $cartao['eh_debito'] ? 'table-danger' : ''; ?>">
+                                    <td>
+                                        <strong><?php echo sanitize($cartao['numero_cartao']); ?></strong>
+                                        <?php if ($cartao['eh_debito']): ?>
+                                            <span class="badge bg-danger ms-1">DÉBITO</span>
+                                        <?php endif; ?>
+                                        <?php if ($cartao['total_cpfs'] >= 3): ?>
+                                            <span class="badge bg-warning text-dark ms-1"><?php echo $cartao['total_cpfs']; ?> CPFs</span>
+                                        <?php endif; ?>
+                                    </td>
+                                    <td><small><?php echo sanitize($cartao['bandeiras']); ?></small></td>
+                                    <td class="text-center">
+                                        <span class="badge bg-primary"><?php echo $cartao['total_titulos']; ?></span>
+                                    </td>
+                                    <td class="text-center">
+                                        <span class="badge <?php echo $cartao['total_cpfs'] >= 3 ? 'bg-warning text-dark' : 'bg-info'; ?>">
+                                            <?php echo $cartao['total_cpfs']; ?>
+                                        </span>
+                                    </td>
+                                    <td class="text-center">
+                                        <span class="badge bg-secondary"><?php echo $cartao['total_promotores']; ?></span>
+                                    </td>
+                                    <td class="text-center">
+                                        <?php if ($cartao['inadimplentes'] > 0): ?>
+                                            <span class="badge bg-danger"><?php echo $cartao['inadimplentes']; ?></span>
+                                        <?php else: ?>
+                                            <span class="text-muted">0</span>
+                                        <?php endif; ?>
+                                    </td>
+                                    <td class="text-center">
+                                        <?php if ($cartao['bloqueados'] > 0): ?>
+                                            <span class="badge bg-warning"><?php echo $cartao['bloqueados']; ?></span>
+                                        <?php else: ?>
+                                            <span class="text-muted">0</span>
+                                        <?php endif; ?>
+                                    </td>
+                                    <td class="text-center">
+                                        <span class="badge <?php
+                                            echo $cartao['taxa_inadimplencia'] >= 50 ? 'bg-danger' :
+                                                 ($cartao['taxa_inadimplencia'] >= 30 ? 'bg-warning text-dark' : 'bg-success');
+                                        ?>">
+                                            <?php echo number_format($cartao['taxa_inadimplencia'], 1); ?>%
+                                        </span>
+                                    </td>
+                                    <td class="text-center">
+                                        <button class="btn btn-sm btn-outline-primary" onclick="verTitulosCartao('<?php echo sanitize($cartao['numero_cartao']); ?>')">
+                                            <i class="bi bi-eye"></i> Ver
+                                        </button>
+                                    </td>
+                                </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        <?php endif; ?>
+
         <!-- Resultados -->
         <div class="card">
             <div class="card-header d-flex justify-content-between align-items-center">
@@ -2759,5 +2889,113 @@ endif;
             </div>
         </div>
     </div>
+
+    <!-- Modal: Títulos do Cartão -->
+    <div class="modal fade" id="modalTitulosCartao" tabindex="-1" aria-labelledby="modalTitulosCartaoLabel" aria-hidden="true">
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content">
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title" id="modalTitulosCartaoLabel">
+                        <i class="bi bi-credit-card-2-front"></i> Títulos do Cartão: <span id="numeroCartaoModal"></span>
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Fechar"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="loadingTitulosCartao" class="text-center py-4">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Carregando...</span>
+                        </div>
+                        <p class="mt-2">Carregando títulos...</p>
+                    </div>
+                    <div id="conteudoTitulosCartao" style="display: none;"></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Função para ver títulos de um cartão específico
+        function verTitulosCartao(numeroCartao) {
+            // Mostrar modal
+            const modal = new bootstrap.Modal(document.getElementById('modalTitulosCartao'));
+            modal.show();
+
+            // Atualizar número do cartão no título
+            document.getElementById('numeroCartaoModal').textContent = numeroCartao;
+
+            // Mostrar loading
+            document.getElementById('loadingTitulosCartao').style.display = 'block';
+            document.getElementById('conteudoTitulosCartao').style.display = 'none';
+
+            // Buscar títulos do cartão
+            const params = new URLSearchParams({
+                numero_cartao: numeroCartao,
+                data_inicio: '<?php echo $dataInicio; ?>',
+                data_fim: '<?php echo $dataFim; ?>',
+                ajax: '1'
+            });
+
+            fetch('ajax/buscar_titulos_cartao.php?' + params.toString())
+                .then(response => response.json())
+                .then(data => {
+                    document.getElementById('loadingTitulosCartao').style.display = 'none';
+                    document.getElementById('conteudoTitulosCartao').style.display = 'block';
+
+                    if (data.success) {
+                        let html = '<div class="table-responsive"><table class="table table-sm table-striped table-hover">';
+                        html += '<thead class="table-dark"><tr>';
+                        html += '<th>Título</th>';
+                        html += '<th>Titular</th>';
+                        html += '<th>CPF</th>';
+                        html += '<th>Promotor</th>';
+                        html += '<th>Status</th>';
+                        html += '<th>Inadimplência</th>';
+                        html += '<th class="text-end">Parcelas</th>';
+                        html += '<th class="text-end">Valor Pago</th>';
+                        html += '<th class="text-end">Saldo</th>';
+                        html += '</tr></thead><tbody>';
+
+                        data.titulos.forEach(titulo => {
+                            const corStatus = titulo.status_inadimplencia.includes('INADIMPLENTE') ? 'table-danger' : 'table-success';
+                            html += `<tr class="${corStatus}">`;
+                            html += `<td><strong>${titulo.numero_titulo}</strong></td>`;
+                            html += `<td>${titulo.nome_titular}</td>`;
+                            html += `<td><small>${titulo.documento_titular}</small></td>`;
+                            html += `<td><small>${titulo.promotor}</small></td>`;
+                            html += `<td><span class="badge ${titulo.status_titulo === 'Ativo' ? 'bg-success' : 'bg-warning'}">${titulo.status_titulo}</span></td>`;
+                            html += `<td><small>${titulo.status_inadimplencia}</small></td>`;
+                            html += `<td class="text-end">${titulo.qtd_parcelas_pagas}/${titulo.quantidade_parcelas_venda}</td>`;
+                            html += `<td class="text-end">R$ ${parseFloat(titulo.total_pago).toLocaleString('pt-BR', {minimumFractionDigits: 2})}</td>`;
+                            html += `<td class="text-end">R$ ${parseFloat(titulo.saldo_restante).toLocaleString('pt-BR', {minimumFractionDigits: 2})}</td>`;
+                            html += `</tr>`;
+                        });
+
+                        html += '</tbody></table></div>';
+
+                        // Resumo
+                        html += `<div class="alert alert-info mt-3">`;
+                        html += `<strong>Resumo:</strong> ${data.titulos.length} títulos encontrados`;
+                        html += ` | ${data.stats.total_cpfs} CPF(s) diferentes`;
+                        html += ` | ${data.stats.inadimplentes} inadimplente(s)`;
+                        html += ` | Taxa: ${data.stats.taxa_inadimplencia}%`;
+                        html += `</div>`;
+
+                        document.getElementById('conteudoTitulosCartao').innerHTML = html;
+                    } else {
+                        document.getElementById('conteudoTitulosCartao').innerHTML =
+                            `<div class="alert alert-warning">Nenhum título encontrado para este cartão.</div>`;
+                    }
+                })
+                .catch(error => {
+                    document.getElementById('loadingTitulosCartao').style.display = 'none';
+                    document.getElementById('conteudoTitulosCartao').style.display = 'block';
+                    document.getElementById('conteudoTitulosCartao').innerHTML =
+                        `<div class="alert alert-danger">Erro ao carregar títulos: ${error.message}</div>`;
+                });
+        }
+    </script>
 </body>
 </html>
