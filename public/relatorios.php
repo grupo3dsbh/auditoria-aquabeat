@@ -273,10 +273,21 @@ $sql = "SELECT t.*,
             WHEN (SELECT tc.tipo_pagamento FROM titulo_cartoes tc WHERE tc.titulo_id = t.id LIMIT 1) LIKE '%CREDITO%' THEN 'CRÉDITO'
             WHEN (SELECT tc.tipo_pagamento FROM titulo_cartoes tc WHERE tc.titulo_id = t.id LIMIT 1) LIKE '%CREDIT%' THEN 'CRÉDITO'
             ELSE 'OUTRO'
-        END as tipo_cartao
+        END as tipo_cartao,
+        CASE
+            WHEN (SELECT tc.bandeira FROM titulo_cartoes tc WHERE tc.titulo_id = t.id LIMIT 1) LIKE '%DEBITO%' THEN 1
+            WHEN (SELECT tc.bandeira FROM titulo_cartoes tc WHERE tc.titulo_id = t.id LIMIT 1) LIKE '%DEBIT%' THEN 1
+            WHEN (SELECT tc.tipo_pagamento FROM titulo_cartoes tc WHERE tc.titulo_id = t.id LIMIT 1) LIKE '%DEBITO%' THEN 1
+            WHEN (SELECT tc.tipo_pagamento FROM titulo_cartoes tc WHERE tc.titulo_id = t.id LIMIT 1) LIKE '%DEBIT%' THEN 1
+            WHEN (SELECT tc.bandeira FROM titulo_cartoes tc WHERE tc.titulo_id = t.id LIMIT 1) LIKE '%CREDITO%' THEN 2
+            WHEN (SELECT tc.bandeira FROM titulo_cartoes tc WHERE tc.titulo_id = t.id LIMIT 1) LIKE '%CREDIT%' THEN 2
+            WHEN (SELECT tc.tipo_pagamento FROM titulo_cartoes tc WHERE tc.titulo_id = t.id LIMIT 1) LIKE '%CREDITO%' THEN 2
+            WHEN (SELECT tc.tipo_pagamento FROM titulo_cartoes tc WHERE tc.titulo_id = t.id LIMIT 1) LIKE '%CREDIT%' THEN 2
+            ELSE 3
+        END as tipo_cartao_ordem
         FROM titulos t
         WHERE " . implode(' AND ', $where) . "
-        ORDER BY {$orderBy} {$orderDir}
+        ORDER BY " . ($orderBy == 'tipo_cartao' ? "tipo_cartao_ordem {$orderDir}, numero_cartao_usado {$orderDir}" : ($orderBy == 'numero_cartao_usado' ? "numero_cartao_usado {$orderDir}, tipo_cartao_ordem ASC" : "{$orderBy} {$orderDir}")) . "
         LIMIT ? OFFSET ?";
 
 $params[] = $perPage;
@@ -2337,6 +2348,14 @@ endif;
                     <button class="btn btn-outline-secondary <?php echo $orderBy == 'data_primeira_venda' ? 'active' : ''; ?>" onclick="ordenar('data_primeira_venda', '<?php echo ($orderBy == 'data_primeira_venda' && $orderDir == 'DESC') ? 'ASC' : 'DESC'; ?>')">
                         <i class="bi bi-calendar"></i> Data
                         <?php if ($orderBy == 'data_primeira_venda'): ?><i class="bi bi-arrow-<?php echo $orderDir == 'ASC' ? 'up' : 'down'; ?>"></i><?php endif; ?>
+                    </button>
+                    <button class="btn btn-outline-secondary <?php echo $orderBy == 'tipo_cartao' ? 'active' : ''; ?>" onclick="ordenar('tipo_cartao', '<?php echo ($orderBy == 'tipo_cartao' && $orderDir == 'ASC') ? 'DESC' : 'ASC'; ?>')">
+                        <i class="bi bi-credit-card"></i> Tipo Pgto
+                        <?php if ($orderBy == 'tipo_cartao'): ?><i class="bi bi-arrow-<?php echo $orderDir == 'ASC' ? 'up' : 'down'; ?>"></i><?php endif; ?>
+                    </button>
+                    <button class="btn btn-outline-secondary <?php echo $orderBy == 'numero_cartao_usado' ? 'active' : ''; ?>" onclick="ordenar('numero_cartao_usado', '<?php echo ($orderBy == 'numero_cartao_usado' && $orderDir == 'ASC') ? 'DESC' : 'ASC'; ?>')">
+                        <i class="bi bi-hash"></i> Nº Cartão
+                        <?php if ($orderBy == 'numero_cartao_usado'): ?><i class="bi bi-arrow-<?php echo $orderDir == 'ASC' ? 'up' : 'down'; ?>"></i><?php endif; ?>
                     </button>
                     </div>
                 </div>
