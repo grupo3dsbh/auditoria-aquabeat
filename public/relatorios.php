@@ -2367,6 +2367,9 @@ endif;
             <div class="card-header d-flex justify-content-between align-items-center">
                 <h5><i class="bi bi-table"></i> Resultados (<?php echo number_format($total, 0, ',', '.'); ?> registros)</h5>
                 <div class="d-flex gap-2">
+                    <button class="btn btn-success btn-sm" onclick="exportarCSV()" id="btnExportarCSV">
+                        <i class="bi bi-file-earmark-spreadsheet"></i> Exportar Excel/CSV
+                    </button>
                     <button class="btn btn-danger btn-sm" onclick="gerarPDFComIA()" id="btnGerarPDF">
                         <i class="bi bi-file-earmark-pdf"></i> Exportar PDF com Análise IA
                     </button>
@@ -2556,6 +2559,43 @@ endif;
                 allowClear: true
             });
         });
+
+        // Função para exportar CSV com filtros aplicados
+        function exportarCSV() {
+            const btn = document.getElementById('btnExportarCSV');
+            const originalHTML = btn.innerHTML;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Exportando...';
+            btn.disabled = true;
+
+            // Pegar todos os parâmetros da URL atual
+            const urlParams = new URLSearchParams(window.location.search);
+
+            // Criar formulário para submeter via POST
+            const form = document.createElement('form');
+            form.method = 'POST';
+            form.action = '<?php echo url("ajax/exportar_csv.php"); ?>';
+            form.target = '_blank';
+
+            // Adicionar todos os parâmetros como inputs hidden
+            for (const [key, value] of urlParams) {
+                const input = document.createElement('input');
+                input.type = 'hidden';
+                input.name = key;
+                input.value = value;
+                form.appendChild(input);
+            }
+
+            // Submeter o formulário
+            document.body.appendChild(form);
+            form.submit();
+            document.body.removeChild(form);
+
+            // Restaurar botão após 2 segundos
+            setTimeout(() => {
+                btn.innerHTML = originalHTML;
+                btn.disabled = false;
+            }, 2000);
+        }
 
         // Função para ordenar
         function ordenar(campo, direcao) {
